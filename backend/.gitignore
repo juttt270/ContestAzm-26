@@ -8,3 +8,6 @@ npm-debug.log*
 .DS_Store
 coverage/
 dist/
+public/temp/*
+!public/temp/.gitkeep
+

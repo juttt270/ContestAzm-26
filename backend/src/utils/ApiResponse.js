@@ -11,3 +11,6 @@ export class ApiResponse {
     return res.status(statusCode).json(new ApiResponse(statusCode, data, message));
   }
 }
+
+export default ApiResponse;
+

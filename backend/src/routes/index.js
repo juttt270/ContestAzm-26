@@ -1,10 +1,26 @@
 import { Router } from "express";
 import healthRoutes from "./health.routes.js";
+import authRoutes from "./auth.routes.js";
+import userRoutes from "./user.routes.js";
+import flatRoutes from "./flat.routes.js";
+import visitorRoutes from "./visitor.routes.js";
+import billingRoutes from "./billing.routes.js";
+import complaintRoutes from "./complaint.routes.js";
+import noticeRoutes from "./notice.routes.js";
+import amenityRoutes from "./amenity.routes.js";
+import emergencyRoutes from "./emergency.routes.js";
 
 const router = Router();
 
-// Naye modules ka route yahan register karein, e.g.
-// router.use("/auth", authRoutes);
 router.use("/health", healthRoutes);
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/flats", flatRoutes);
+router.use("/visitors", visitorRoutes);
+router.use("/bills", billingRoutes);
+router.use("/complaints", complaintRoutes);
+router.use("/notices", noticeRoutes);
+router.use("/amenities", amenityRoutes);
+router.use("/emergency", emergencyRoutes);
 
 export default router;
