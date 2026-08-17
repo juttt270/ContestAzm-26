@@ -16,7 +16,10 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CLIENT_URL, // frontend ka localhost URL .env se aata hai
+    origin:
+      env.NODE_ENV === "development"
+        ? /^http:\/\/localhost:\d+$/ // dev mein Vite kisi bhi free port par chal sakta hai
+        : env.CLIENT_URL,
     credentials: true,
   })
 );

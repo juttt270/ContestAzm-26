@@ -22,8 +22,9 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    const detail = error.response?.data?.errors?.[0];
     const message =
-      error.response?.data?.message || error.message || "Something went wrong";
+      detail || error.response?.data?.message || error.message || "Something went wrong";
 
     if (error.response?.status === 401) {
       localStorage.removeItem("token");

@@ -1,12 +1,46 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-brand-50: #eef6ff;
-  --color-brand-100: #d9ebff;
-  --color-brand-500: #2b7fff;
-  --color-brand-600: #1d63d6;
-  --color-brand-700: #174ea6;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-sidebar: var(--sidebar);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-ghost: var(--ink-ghost);
+}
+
+:root {
+  --canvas: #f7f7f8;
+  --surface: #ffffff;
+  --surface-hover: #f2f2f3;
+  --sidebar: #ffffff;
+  --line: #e4e4e7;
+  --line-soft: #ececee;
+  --ink: #18181b;
+  --ink-dim: #52525b;
+  --ink-faint: #71717a;
+  --ink-ghost: #a1a1aa;
+}
+
+.dark {
+  --canvas: #09090b;
+  --surface: #131316;
+  --surface-hover: #1c1c1f;
+  --sidebar: #08080a;
+  --line: #26262a;
+  --line-soft: #1a1a1d;
+  --ink: #ffffff;
+  --ink-dim: #a1a1aa;
+  --ink-faint: #71717a;
+  --ink-ghost: #52525b;
 }
 
 @layer base {
@@ -17,6 +51,10 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-800 antialiased;
+    @apply bg-canvas text-ink antialiased transition-colors duration-200;
+  }
+
+  ::selection {
+    @apply bg-ink-ghost/40 text-ink;
   }
 }
