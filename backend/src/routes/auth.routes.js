@@ -6,6 +6,7 @@ import {
   logoutUser,
   getMyProfile,
   updateProfile,
+  changePassword,
 } from "../controllers/auth.controller.js";
 import { protect } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.js";
@@ -20,5 +21,6 @@ router.post("/refresh-token", refreshAccessToken);
 router.post("/logout", protect, logoutUser);
 router.get("/me", protect, getMyProfile);
 router.put("/update-profile", protect, upload.single("avatar"), updateProfile);
+router.put("/change-password", protect, changePassword);
 
 export default router;

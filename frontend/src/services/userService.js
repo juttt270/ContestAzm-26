@@ -20,3 +20,15 @@ export const deleteUser = async (id) => {
   const res = await axiosClient.delete(`/users/${id}`);
   return res.data;
 };
+
+/** Admin override — set a new password for any user without needing their old one. */
+export const resetPassword = async (id, newPassword) => {
+  const res = await axiosClient.put(`/users/${id}/reset-password`, { newPassword });
+  return res.data;
+};
+
+/** Gate security: look up which resident a vehicle number belongs to. */
+export const lookupVehicle = async (vehicleNumber) => {
+  const res = await axiosClient.get("/users/vehicles/lookup", { params: { vehicleNumber } });
+  return res.data;
+};

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { env } from "@/config/env";
 import { ROUTES } from "@/constants";
@@ -9,7 +9,6 @@ import TextField from "@/components/ui/TextField";
 export default function Login() {
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,8 +16,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!authLoading && isAuthenticated) {
-    const redirectTo = location.state?.from?.pathname || ROUTES.DASHBOARD;
-    return <Navigate to={redirectTo} replace />;
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -27,7 +25,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate(location.state?.from?.pathname || ROUTES.DASHBOARD, { replace: true });
+      navigate(ROUTES.DASHBOARD, { replace: true });
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

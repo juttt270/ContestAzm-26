@@ -46,7 +46,7 @@ const generateTokensAndRespond = async (user, statusCode, message, res) => {
 // @route   POST /api/v1/auth/register
 // @access  Public (or Admin for staff)
 export const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, phone, role, flatId, occupancyStatus } = req.body;
+  const { name, email, password, phone, role, flatId, occupancyStatus, profession } = req.body;
 
   if (!name || !email || !password || !phone) {
     throw new ApiError(400, "Please provide name, email, password, and phone number.");
@@ -74,6 +74,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     role: role || "Resident",
     flatId: flatId || null,
     occupancyStatus: occupancyStatus || "None",
+    profession: profession || "",
     avatar: avatarData,
   });
 
@@ -152,14 +153,22 @@ export const getMyProfile = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/auth/update-profile
 // @access  Private
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { name, phone, vehicles, emergencyContacts } = req.body;
+  const { name, phone } = req.body;
+  let { vehicles, emergencyContacts, familyMembers } = req.body;
 
   const user = await User.findById(req.user._id);
 
   if (name) user.name = name;
   if (phone) user.phone = phone;
-  if (vehicles) user.vehicles = vehicles;
-  if (emergencyContacts) user.emergencyContacts = emergencyContacts;
+  if (vehicles) {
+    user.vehicles = typeof vehicles === "string" ? JSON.parse(vehicles) : vehicles;
+  }
+  if (emergencyContacts) {
+    user.emergencyContacts = typeof emergencyContacts === "string" ? JSON.parse(emergencyContacts) : emergencyContacts;
+  }
+  if (familyMembers) {
+    user.familyMembers = typeof familyMembers === "string" ? JSON.parse(familyMembers) : familyMembers;
+  }
 
   // Handle avatar update
   if (req.file) {
@@ -175,4 +184,30 @@ export const updateProfile = asyncHandler(async (req, res) => {
   await user.save();
 
   return res.status(200).json(new ApiResponse(200, user, "Profile updated successfully"));
+});
+
+// @desc    Change own password (requires current password)
+// @route   PUT /api/v1/auth/change-password
+// @access  Private
+export const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(400, "Please provide currentPassword and newPassword.");
+  }
+  if (newPassword.length < 6) {
+    throw new ApiError(400, "New password must be at least 6 characters.");
+  }
+
+  const user = await User.findById(req.user._id).select("+password");
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw new ApiError(401, "Current password is incorrect.");
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  return res.status(200).json(new ApiResponse(200, {}, "Password changed successfully"));
 });

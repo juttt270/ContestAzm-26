@@ -9,47 +9,50 @@ const TINTS = {
   success: { icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", ring: "group-hover:ring-emerald-500/25", hex: "#1baf7a" },
 };
 
-export default function StatCard({ icon: Icon, label, value, sub, delta, tint = "neutral", trend, meter }) {
+export default function StatCard({ icon: Icon, label, value, sub, delta, tint = "neutral", trend, meter, onClick }) {
   const t = TINTS[tint];
+  const Root = onClick ? "button" : "div";
 
   return (
-    <div
-      className={`group rounded-xl border border-line bg-surface p-5 ring-1 ring-transparent transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/40 ${t.ring}`}
+    <Root
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`group w-full rounded-xl border border-line bg-surface p-3 text-left ring-1 ring-transparent transition-all duration-200 hover:-translate-y-0.5 hover:border-transparent hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/40 ${t.ring} ${onClick ? "cursor-pointer" : ""}`}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <span
-          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-110 ${t.icon}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-md transition-transform duration-200 group-hover:scale-110 ${t.icon}`}
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-3.5 w-3.5" />
         </span>
         {delta && (
           <span
-            className={`flex items-center gap-0.5 text-sm font-medium ${
+            className={`flex items-center gap-0.5 text-[11px] font-medium ${
               delta.direction === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
             }`}
           >
             {delta.direction === "up" ? (
-              <IconArrowUpRight className="h-4 w-4" />
+              <IconArrowUpRight className="h-3 w-3" />
             ) : (
-              <IconArrowDownRight className="h-4 w-4" />
+              <IconArrowDownRight className="h-3 w-3" />
             )}
             {delta.value}
           </span>
         )}
       </div>
-      <p className="mt-4 text-[28px] font-semibold leading-none tracking-tight text-ink">{value}</p>
-      <p className="mt-2 text-sm font-medium text-ink-faint">{label}</p>
-      {sub && <p className="mt-2 text-[13px] text-ink-ghost">{sub}</p>}
+      <p className="mt-2 text-xl font-semibold leading-none tracking-tight text-ink">{value}</p>
+      <p className="mt-1 text-xs font-medium text-ink-faint">{label}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-ink-ghost">{sub}</p>}
       {trend && (
-        <div className="mt-3">
+        <div className="mt-2">
           <Sparkline data={trend} accent={t.hex} />
         </div>
       )}
       {meter && (
-        <div className="mt-4">
+        <div className="mt-2">
           <Meter value={meter.value} max={meter.max} accent={t.hex} />
         </div>
       )}
-    </div>
+    </Root>
   );
 }

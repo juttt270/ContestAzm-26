@@ -1,7 +1,9 @@
+import { useNavigate } from "react-router-dom";
 import { IconMenu, IconSearch, IconBell, IconChevronDown, IconSun, IconMoon } from "@/components/ui/icons";
 import Menu from "@/components/ui/Menu";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { ROUTES } from "@/constants";
 
 const pillButton =
   "flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-faint shadow-[0_0_14px_rgba(0,0,0,0.06)] transition hover:border-ink-ghost hover:text-ink dark:shadow-[0_0_14px_rgba(0,0,0,0.5)]";
@@ -9,6 +11,7 @@ const pillButton =
 export default function Topbar({ onMenuClick, onLogoutClick }) {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const initial = user?.name?.charAt(0)?.toUpperCase() || "?";
 
   return (
@@ -58,8 +61,8 @@ export default function Topbar({ onMenuClick, onLogoutClick }) {
               type="button"
               className="flex items-center gap-2 rounded-full border border-line bg-surface py-1 pl-1 pr-3 shadow-[0_0_14px_rgba(0,0,0,0.06)] transition hover:border-ink-ghost dark:shadow-[0_0_14px_rgba(0,0,0,0.5)]"
             >
-              <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-zinc-500 to-zinc-700 text-xs font-semibold text-white ring-1 ring-black/10 dark:from-zinc-600 dark:to-zinc-800 dark:ring-white/10">
-                {initial}
+              <span className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-zinc-500 to-zinc-700 text-xs font-semibold text-white ring-1 ring-black/10 dark:from-zinc-600 dark:to-zinc-800 dark:ring-white/10">
+                {user?.avatar?.url ? <img src={user.avatar.url} alt="" className="h-full w-full object-cover" /> : initial}
                 <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-surface bg-emerald-400" />
               </span>
               <span className="hidden text-sm font-medium text-ink sm:block">{user?.name?.split(" ")[0] || "..."}</span>
@@ -67,8 +70,7 @@ export default function Topbar({ onMenuClick, onLogoutClick }) {
             </button>
           }
           items={[
-            { label: "Profile", onClick: () => {} },
-            { label: "Settings", onClick: () => {} },
+            { label: "My Profile", onClick: () => navigate(ROUTES.PROFILE) },
             { divider: true },
             { label: "Log out", danger: true, onClick: onLogoutClick },
           ]}

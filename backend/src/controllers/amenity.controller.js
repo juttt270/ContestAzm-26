@@ -3,6 +3,7 @@ import { AmenityBooking } from "../models/amenityBooking.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
 
 // @desc    Create a new society amenity (Admin)
 // @route   POST /api/v1/amenities
@@ -19,12 +20,21 @@ export const createAmenity = asyncHandler(async (req, res) => {
     throw new ApiError(409, `Amenity '${name}' already exists.`);
   }
 
+  let imageData = { url: "", public_id: "" };
+  if (req.file) {
+    const uploadResult = await uploadOnCloudinary(req.file.path, "smart_society/amenities");
+    if (uploadResult) {
+      imageData = { url: uploadResult.url, public_id: uploadResult.public_id };
+    }
+  }
+
   const amenity = await Amenity.create({
     name,
     description: description || "",
     capacity: capacity || 20,
     rules: rules || "Standard community guidelines apply.",
     bookingFee: bookingFee || 0,
+    image: imageData,
   });
 
   return res.status(201).json(new ApiResponse(201, amenity, "Amenity created successfully"));
@@ -74,7 +84,7 @@ export const checkAmenityAvailability = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/amenities/:id/book
 // @access  Private (Resident)
 export const bookAmenity = asyncHandler(async (req, res) => {
-  const { bookingDate, startTime, endTime } = req.body;
+  const { bookingDate, startTime, endTime, guestCount, notes } = req.body;
 
   if (!bookingDate || !startTime || !endTime) {
     throw new ApiError(400, "Please provide bookingDate, startTime (HH:mm), and endTime (HH:mm).");
@@ -108,6 +118,8 @@ export const bookAmenity = asyncHandler(async (req, res) => {
     bookingDate,
     startTime,
     endTime,
+    guestCount: guestCount || 1,
+    notes: notes || "",
     totalFee: amenity.bookingFee || 0,
     status: "CONFIRMED",
   });

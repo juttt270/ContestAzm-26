@@ -20,6 +20,15 @@ const emergencyContactSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const familyMemberSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    relation: { type: String, required: true, trim: true },
+    age: { type: Number, default: null },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -56,6 +65,11 @@ const userSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    profession: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     avatar: {
       url: { type: String, default: "" },
       public_id: { type: String, default: "" },
@@ -72,6 +86,7 @@ const userSchema = new mongoose.Schema(
     },
     vehicles: [vehicleSchema],
     emergencyContacts: [emergencyContactSchema],
+    familyMembers: [familyMemberSchema],
     isActive: {
       type: Boolean,
       default: true,

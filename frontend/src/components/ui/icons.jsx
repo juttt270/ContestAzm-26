@@ -296,3 +296,126 @@ export function IconClock({ className }) {
     </svg>
   );
 }
+
+export function IconCheck({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m4.5 10.5 3.8 3.8L15.5 6" />
+    </svg>
+  );
+}
+
+export function IconQrCode({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+      <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+      <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+      <path d="M12 12h2M12 15.5h4.5M16.5 12v4.5" />
+    </svg>
+  );
+}
+
+export function IconCamera({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 7.5a1 1 0 0 1 1-1h2.2l.9-1.6a1 1 0 0 1 .87-.5h3.06a1 1 0 0 1 .87.5l.9 1.6H16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8Z" />
+      <circle cx="10" cy="11.5" r="3" />
+    </svg>
+  );
+}
+
+export function IconMap({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M7 4 3 5.5v11L7 15m0-11 6 2m-6-2v11m6-9 4-1.5v11L13 15m0-9v9m0-9 6 2v11" />
+    </svg>
+  );
+}
+
+export function IconPoll({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3" y="10.5" width="3.2" height="6" rx="0.8" />
+      <rect x="8.4" y="6.5" width="3.2" height="10" rx="0.8" />
+      <rect x="13.8" y="3.5" width="3.2" height="13" rx="0.8" />
+    </svg>
+  );
+}
+
+export function IconLock({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
+      <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" />
+      <circle cx="10" cy="12.7" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconWrench({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M13.5 3.5a4 4 0 0 0-5.2 4.9L3.5 13.2a1.5 1.5 0 0 0 2.1 2.1l4.8-4.8a4 4 0 0 0 4.9-5.2l-2.3 2.3-2-2Z" />
+    </svg>
+  );
+}
+
+export function IconCar({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 12.5V15a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-.7h7v.7a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-2.5" />
+      <path d="M3.5 12.5 5 7.8a1.5 1.5 0 0 1 1.4-1h7.2a1.5 1.5 0 0 1 1.4 1l1.5 4.7Z" />
+      <path d="M3.5 12.5h13" />
+      <circle cx="6.5" cy="12.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="13.5" cy="12.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconUser({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="10" cy="6.8" r="3.3" />
+      <path d="M3.5 17c0-3.3 2.9-5.8 6.5-5.8s6.5 2.5 6.5 5.8" />
+    </svg>
+  );
+}
+
+export function IconBook({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 4.5c1.8-.7 4.1-.7 6 .3v10.7c-1.9-1-4.2-1-6-.3V4.5Z" />
+      <path d="M16 4.5c-1.8-.7-4.1-.7-6 .3v10.7c1.9-1 4.2-1 6-.3V4.5Z" />
+    </svg>
+  );
+}
+
+export function IconHistory({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 10a6.5 6.5 0 1 0 2-4.7" />
+      <path d="M3 3.5v3.3h3.3" />
+      <path d="M10 6.5V10l2.6 1.6" />
+    </svg>
+  );
+}
+
+export function IconPhone({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 3.5h2.2l1 3-1.6 1.4a9 9 0 0 0 4.5 4.5l1.4-1.6 3 1v2.2c0 .9-.8 1.6-1.7 1.5A13.5 13.5 0 0 1 3.5 5.2c-.1-.9.6-1.7 1.5-1.7Z" />
+    </svg>
+  );
+}
+
+export function IconSiren({ className }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4.5 15.5a5.5 5.5 0 1 1 11 0Z" />
+      <path d="M10 15.5V9" />
+      <path d="M10 2.5v2M15.5 6l-1.4 1.4M4.5 6l1.4 1.4" />
+      <path d="M3 15.5h14" />
+    </svg>
+  );
+}

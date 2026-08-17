@@ -3,7 +3,8 @@ import axiosClient from "./axiosClient";
 const toFormData = (payload) => {
   const formData = new FormData();
   Object.entries(payload).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) formData.append(key, value);
+    if (value === undefined || value === null || value === "") return;
+    formData.append(key, value);
   });
   return formData;
 };
@@ -14,6 +15,7 @@ export const getComplaints = async (params) => {
   return res.data;
 };
 
+/** payload may include an `attachments` File for a photo of the issue. */
 export const createComplaint = async (payload) => {
   const res = await axiosClient.post("/complaints", toFormData(payload), {
     headers: { "Content-Type": "multipart/form-data" },

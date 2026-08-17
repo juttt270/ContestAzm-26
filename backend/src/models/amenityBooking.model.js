@@ -27,6 +27,16 @@ const amenityBookingSchema = new mongoose.Schema(
       type: String, // format: "HH:mm" e.g. "16:00"
       required: true,
     },
+    guestCount: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+    notes: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["PENDING", "CONFIRMED", "CANCELLED"],

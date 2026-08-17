@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
+import { logAudit } from "../utils/auditLogger.js";
 
 /** Helper to generate ticket number */
 const generateTicketNumber = () => {
@@ -114,6 +115,15 @@ export const assignStaffToComplaint = asyncHandler(async (req, res) => {
   complaint.status = "IN_PROGRESS";
   await complaint.save();
 
+  await logAudit({
+    action: "COMPLAINT_ASSIGNED",
+    performedBy: req.user._id,
+    targetEntity: "Complaint",
+    targetId: complaint._id,
+    details: { ticketNumber: complaint.ticketNumber, assignedTo: staff.name },
+    req,
+  });
+
   return res
     .status(200)
     .json(new ApiResponse(200, complaint, `Ticket routed and assigned to ${staff.name}`));
@@ -134,6 +144,7 @@ export const updateComplaintStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Complaint ticket not found.");
   }
 
+  const previousStatus = complaint.status;
   complaint.status = status;
   if (resolutionNotes) complaint.resolutionNotes = resolutionNotes;
   if (status === "RESOLVED" || status === "CLOSED") {
@@ -141,6 +152,15 @@ export const updateComplaintStatus = asyncHandler(async (req, res) => {
   }
 
   await complaint.save();
+
+  await logAudit({
+    action: "COMPLAINT_STATUS_CHANGED",
+    performedBy: req.user._id,
+    targetEntity: "Complaint",
+    targetId: complaint._id,
+    details: { ticketNumber: complaint.ticketNumber, from: previousStatus, to: status },
+    req,
+  });
 
   return res
     .status(200)

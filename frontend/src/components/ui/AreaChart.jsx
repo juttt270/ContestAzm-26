@@ -2,19 +2,21 @@ import { useMemo, useState } from "react";
 import { useTheme } from "@/context/ThemeContext";
 
 const WIDTH = 600;
-const HEIGHT = 220;
-const PAD_LEFT = 8;
+const HEIGHT = 240;
+const PAD_LEFT = 4;
 const PAD_RIGHT = 8;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 26;
+const AXIS_W = 38;
 
-export default function AreaChart({ data, formatValue = (v) => v }) {
+export default function AreaChart({ data, formatValue = (v) => v, axisFormat = (v) => v }) {
   const { theme } = useTheme();
   const color = theme === "dark" ? "#3987e5" : "#2a78d6";
   const [hoverIndex, setHoverIndex] = useState(null);
   const gradientId = useMemo(() => `area-fill-${Math.random().toString(36).slice(2, 9)}`, []);
 
-  const plotW = WIDTH - PAD_LEFT - PAD_RIGHT;
+  const plotX = PAD_LEFT + AXIS_W;
+  const plotW = WIDTH - plotX - PAD_RIGHT;
   const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
   const maxValue = Math.max(...data.map((d) => d.value), 1);
@@ -24,10 +26,10 @@ export default function AreaChart({ data, formatValue = (v) => v }) {
     () =>
       data.map((d, i) => ({
         ...d,
-        x: PAD_LEFT + (data.length === 1 ? 0 : (i / (data.length - 1)) * plotW),
+        x: plotX + (data.length === 1 ? 0 : (i / (data.length - 1)) * plotW),
         y: PAD_TOP + plotH - (d.value / niceMax) * plotH,
       })),
-    [data, plotW, plotH, niceMax],
+    [data, plotW, plotH, niceMax, plotX],
   );
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
@@ -35,6 +37,7 @@ export default function AreaChart({ data, formatValue = (v) => v }) {
 
   const hovered = hoverIndex != null ? points[hoverIndex] : null;
   const labelIdxs = [0, Math.floor((points.length - 1) / 2), points.length - 1];
+  const yTicks = [0, 0.5, 1];
 
   const handleMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -61,21 +64,25 @@ export default function AreaChart({ data, formatValue = (v) => v }) {
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
 
-        {[0, 0.5, 1].map((s) => (
-          <line
-            key={s}
-            x1={PAD_LEFT}
-            x2={WIDTH - PAD_RIGHT}
-            y1={PAD_TOP + plotH * (1 - s)}
-            y2={PAD_TOP + plotH * (1 - s)}
-            className="stroke-line-soft"
-            strokeWidth="1"
-          />
+        {yTicks.map((s) => (
+          <g key={s}>
+            <line
+              x1={plotX}
+              x2={WIDTH - PAD_RIGHT}
+              y1={PAD_TOP + plotH * (1 - s)}
+              y2={PAD_TOP + plotH * (1 - s)}
+              className="stroke-line-soft"
+              strokeWidth="1"
+            />
+            <text x={plotX - 8} y={PAD_TOP + plotH * (1 - s) + 3.5} textAnchor="end" className="fill-ink-ghost" style={{ fontSize: 10.5 }}>
+              {axisFormat(Math.round(niceMax * s))}
+            </text>
+          </g>
         ))}
 
         <path d={areaPath} fill={`url(#${gradientId})`} />

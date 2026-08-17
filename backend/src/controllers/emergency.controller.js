@@ -1,7 +1,9 @@
 import { EmergencyAlert } from "../models/emergencyAlert.model.js";
+import { EmergencyContact } from "../models/emergencyContact.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { logAudit } from "../utils/auditLogger.js";
 
 // @desc    Trigger Emergency SOS Siren Alert (Resident, Guard, Admin)
 // @route   POST /api/v1/emergency/trigger
@@ -61,5 +63,56 @@ export const resolveEmergencyAlert = asyncHandler(async (req, res) => {
   alert.resolvedAt = new Date();
   await alert.save();
 
+  await logAudit({
+    action: "EMERGENCY_ALERT_RESOLVED",
+    performedBy: req.user._id,
+    targetEntity: "EmergencyAlert",
+    targetId: alert._id,
+    details: { alertType: alert.alertType, locationDetails: alert.locationDetails },
+    req,
+  });
+
   return res.status(200).json(new ApiResponse(200, alert, "Emergency alert status marked as RESOLVED."));
+});
+
+// @desc    Get the society emergency contact directory (office, security, ambulance, etc.)
+// @route   GET /api/v1/emergency/contacts
+// @access  Private
+export const getEmergencyContacts = asyncHandler(async (req, res) => {
+  const contacts = await EmergencyContact.find({ isActive: true }).sort({ type: 1, name: 1 });
+  return res.status(200).json(new ApiResponse(200, contacts, "Emergency contact directory retrieved"));
+});
+
+// @desc    Add a contact to the emergency directory (Admin)
+// @route   POST /api/v1/emergency/contacts
+// @access  Private (Admin)
+export const createEmergencyContact = asyncHandler(async (req, res) => {
+  const { name, designation, phone, type } = req.body;
+
+  if (!name || !phone) {
+    throw new ApiError(400, "Please provide a contact name and phone number.");
+  }
+
+  const contact = await EmergencyContact.create({
+    name,
+    designation: designation || "",
+    phone,
+    type: type || "Other",
+  });
+
+  return res.status(201).json(new ApiResponse(201, contact, "Emergency contact added successfully"));
+});
+
+// @desc    Remove a contact from the emergency directory (Admin)
+// @route   DELETE /api/v1/emergency/contacts/:id
+// @access  Private (Admin)
+export const deleteEmergencyContact = asyncHandler(async (req, res) => {
+  const contact = await EmergencyContact.findById(req.params.id);
+  if (!contact) {
+    throw new ApiError(404, "Emergency contact not found.");
+  }
+
+  await contact.deleteOne();
+
+  return res.status(200).json(new ApiResponse(200, {}, "Emergency contact removed successfully"));
 });

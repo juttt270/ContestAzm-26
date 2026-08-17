@@ -4,7 +4,7 @@ import Button from "@/components/ui/Button";
 import Menu from "@/components/ui/Menu";
 import Pagination from "@/components/ui/Pagination";
 import EmptyState from "@/components/ui/EmptyState";
-import { IconSearch, IconDots, IconDownload, IconFileSpreadsheet, IconFilePdf } from "@/components/ui/icons";
+import { IconSearch, IconDownload, IconFileSpreadsheet, IconFilePdf } from "@/components/ui/icons";
 import { exportToExcel, exportToPdf } from "@/lib/exportTable";
 
 function cellText(column, row) {
@@ -54,9 +54,9 @@ export default function Table({
   ];
 
   return (
-    <div className="rounded-xl border border-line bg-surface">
-      <div className="flex flex-col gap-3 border-b border-line-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        {title && <h2 className="text-base font-semibold text-ink">{title}</h2>}
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        {title && <h2 className="text-base font-semibold tracking-tight text-ink">{title}</h2>}
         <div className="flex flex-1 items-center justify-end gap-2.5">
           {searchable && (
             <Input
@@ -67,7 +67,7 @@ export default function Table({
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full sm:w-60"
+              className="w-full bg-canvas sm:w-60"
             />
           )}
           {exportItems && (
@@ -90,46 +90,55 @@ export default function Table({
         <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-[15px]">
+          <table className="w-full border-separate border-spacing-0 text-left text-[14.5px]">
             <thead>
-              <tr className="text-xs text-ink-faint">
+              <tr className="bg-canvas/60">
                 {columns.map((column) => (
                   <th
                     key={column.key}
-                    className={`whitespace-nowrap px-5 py-2.5 font-semibold uppercase tracking-wide ${column.align === "right" ? "text-right" : ""}`}
+                    className={`whitespace-nowrap border-b border-line px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-ink-ghost ${column.align === "right" ? "text-right" : ""}`}
                   >
                     {column.header}
                   </th>
                 ))}
-                {rowActions && <th className="px-5 py-2.5" />}
+                {rowActions && (
+                  <th className="whitespace-nowrap border-b border-line px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-ink-ghost">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {paginated.map((row) => (
-                <tr key={row[keyField]} className="border-t border-line-soft transition hover:bg-surface-hover">
+              {paginated.map((row, i) => (
+                <tr key={row[keyField]} className="group transition-colors hover:bg-surface-hover">
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={`px-5 py-3 ${column.align === "right" ? "text-right" : ""} ${column.className || "text-ink-dim"}`}
+                      className={`px-5 py-3.5 ${i !== paginated.length - 1 ? "border-b border-line-soft" : ""} ${column.align === "right" ? "text-right" : ""} ${column.className || "text-ink-dim"}`}
                     >
                       {column.render ? column.render(row) : row[column.key]}
                     </td>
                   ))}
                   {rowActions && (
-                    <td className="px-5 py-3 text-right">
-                      <Menu
-                        align="right"
-                        trigger={
+                    <td className={`px-5 py-3.5 ${i !== paginated.length - 1 ? "border-b border-line-soft" : ""}`}>
+                      <div className="flex items-center justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+                        {rowActions(row).map((action) => (
                           <button
+                            key={action.label}
                             type="button"
-                            aria-label="Row actions"
-                            className="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-hover hover:text-ink"
+                            title={action.label}
+                            aria-label={action.label}
+                            onClick={action.onClick}
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                              action.danger
+                                ? "text-ink-ghost hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+                                : "text-ink-ghost hover:bg-ink/[0.06] hover:text-ink"
+                            }`}
                           >
-                            <IconDots className="h-4 w-4" />
+                            {action.icon && <action.icon className="h-[17px] w-[17px]" />}
                           </button>
-                        }
-                        items={rowActions(row)}
-                      />
+                        ))}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -140,7 +149,7 @@ export default function Table({
       )}
 
       {pageCount > 1 && (
-        <div className="border-t border-line-soft">
+        <div className="border-t border-line">
           <Pagination
             page={currentPage}
             pageCount={pageCount}

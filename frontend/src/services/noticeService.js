@@ -3,7 +3,8 @@ import axiosClient from "./axiosClient";
 const toFormData = (payload) => {
   const formData = new FormData();
   Object.entries(payload).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) formData.append(key, value);
+    if (value === undefined || value === null) return;
+    formData.append(key, Array.isArray(value) ? JSON.stringify(value) : value);
   });
   return formData;
 };
@@ -22,5 +23,10 @@ export const createNotice = async (payload) => {
 
 export const voteOnPoll = async (id, optionId) => {
   const res = await axiosClient.post(`/notices/${id}/vote`, { optionId });
+  return res.data;
+};
+
+export const deleteNotice = async (id) => {
+  const res = await axiosClient.delete(`/notices/${id}`);
   return res.data;
 };

@@ -10,8 +10,9 @@ import Button from "@/components/ui/Button";
 import TextField from "@/components/ui/TextField";
 import SelectField from "@/components/ui/SelectField";
 import TextareaField from "@/components/ui/TextareaField";
+import ImageUpload from "@/components/ui/ImageUpload";
 import Loader from "@/components/ui/Loader";
-import { IconPlus, IconUserPlus, IconAlertCircle } from "@/components/ui/icons";
+import { IconPlus, IconUserPlus, IconAlertCircle, IconClock } from "@/components/ui/icons";
 
 const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Security", "Cleanliness", "Other"];
 const PRIORITIES = ["Low", "Medium", "High", "Emergency"];
@@ -36,6 +37,7 @@ export default function Complaints() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [photoFile, setPhotoFile] = useState(null);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,9 +86,10 @@ export default function Complaints() {
     setFormError("");
     setSubmitting(true);
     try {
-      await createComplaint(form);
+      await createComplaint({ ...form, attachments: photoFile || undefined });
       setCreateOpen(false);
       setForm(emptyForm);
+      setPhotoFile(null);
       fetchComplaints();
     } catch (err) {
       setFormError(err.message || "Failed to create complaint");
@@ -141,7 +144,19 @@ export default function Complaints() {
     {
       key: "status",
       header: "Status",
-      render: (row) => <StatusBadge status={row.status}>{STATUS_LABEL[row.status]}</StatusBadge>,
+      render: (row) => {
+        const isOverdue = row.status !== "RESOLVED" && row.status !== "CLOSED" && row.slaDueDate && new Date(row.slaDueDate) < new Date();
+        return (
+          <div className="flex items-center gap-2">
+            <StatusBadge status={row.status}>{STATUS_LABEL[row.status]}</StatusBadge>
+            {isOverdue && (
+              <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400" title={`SLA due ${formatDate(row.slaDueDate)}`}>
+                <IconClock className="h-3.5 w-3.5" /> Overdue
+              </span>
+            )}
+          </div>
+        );
+      },
       exportValue: (row) => STATUS_LABEL[row.status],
     },
     {
@@ -241,12 +256,22 @@ export default function Complaints() {
 
       <Modal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          setPhotoFile(null);
+        }}
         title="Raise a new complaint"
         description="Our maintenance team will get back to you based on priority."
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCreateOpen(false);
+                setPhotoFile(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" disabled={submitting} onClick={handleCreate}>
@@ -289,6 +314,7 @@ export default function Complaints() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Describe the issue in detail..."
           />
+          <ImageUpload label="Photo (optional)" onChange={setPhotoFile} />
         </form>
       </Modal>
 
@@ -321,7 +347,7 @@ export default function Complaints() {
             onChange={(e) => setSelectedStaff(e.target.value)}
             options={[
               { label: staffOptions.length ? "Select staff" : "No staff members found", value: "" },
-              ...staffOptions.map((s) => ({ label: s.name, value: s._id })),
+              ...staffOptions.map((s) => ({ label: s.profession ? `${s.name} — ${s.profession}` : s.name, value: s._id })),
             ]}
           />
         </form>

@@ -3,7 +3,8 @@ import axiosClient from "./axiosClient";
 const toFormData = (payload) => {
   const formData = new FormData();
   Object.entries(payload).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) formData.append(key, value);
+    if (value === undefined || value === null) return;
+    formData.append(key, Array.isArray(value) ? JSON.stringify(value) : value);
   });
   return formData;
 };
@@ -38,4 +39,10 @@ export const updateProfile = async (payload) => {
 
 export const logout = async () => {
   await axiosClient.post("/auth/logout");
+};
+
+/** Change own password — requires the current password. */
+export const changePassword = async (currentPassword, newPassword) => {
+  const res = await axiosClient.put("/auth/change-password", { currentPassword, newPassword });
+  return res.data;
 };

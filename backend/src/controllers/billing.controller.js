@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
+import { logAudit } from "../utils/auditLogger.js";
 
 /** Helper to generate bill number e.g. INV-202608-001 */
 const generateBillNumber = (billingMonth, index) => {
@@ -11,6 +12,14 @@ const generateBillNumber = (billingMonth, index) => {
   const seq = (index + 1).toString().padStart(3, "0");
   return `INV-${cleanMonth}-${seq}`;
 };
+
+/** Splits amountDue proportionally so the breakdown always sums to the flat's actual maintenance rate. */
+const defaultBreakdown = (amountDue) => ({
+  waterCharges: Math.round(amountDue * 0.2),
+  securityCharges: Math.round(amountDue * 0.32),
+  repairCharges: Math.round(amountDue * 0.16),
+  commonAreaCharges: Math.round(amountDue * 0.32),
+});
 
 // @desc    Generate Monthly Maintenance Bills for all occupied flats (Admin)
 // @route   POST /api/v1/bills/generate-monthly
@@ -47,18 +56,22 @@ export const generateMonthlyBills = asyncHandler(async (req, res) => {
       residentId,
       billingMonth,
       amountDue,
-      breakdown: breakdown || {
-        waterCharges: 500,
-        securityCharges: 800,
-        repairCharges: 400,
-        commonAreaCharges: 800,
-      },
+      breakdown: breakdown || defaultBreakdown(amountDue),
       dueDate: new Date(dueDate),
       paymentStatus: "PENDING",
     });
 
     generatedBills.push(bill);
   }
+
+  await logAudit({
+    action: "BILLS_GENERATED",
+    performedBy: req.user._id,
+    targetEntity: "MaintenanceBill",
+    targetId: null,
+    details: { billingMonth, generatedCount: generatedBills.length },
+    req,
+  });
 
   return res
     .status(201)
@@ -90,6 +103,15 @@ export const applyOverduePenalties = asyncHandler(async (req, res) => {
     await bill.save();
     updatedCount++;
   }
+
+  await logAudit({
+    action: "PENALTIES_APPLIED",
+    performedBy: req.user._id,
+    targetEntity: "MaintenanceBill",
+    targetId: null,
+    details: { penaltyPercentage, updatedCount },
+    req,
+  });
 
   return res
     .status(200)
@@ -157,6 +179,15 @@ export const payMaintenanceBill = asyncHandler(async (req, res) => {
   if (receiptData.url) bill.paymentReceipt = receiptData;
 
   await bill.save();
+
+  await logAudit({
+    action: "BILL_PAID",
+    performedBy: req.user._id,
+    targetEntity: "MaintenanceBill",
+    targetId: bill._id,
+    details: { billNumber: bill.billNumber, amountPaid: bill.amountDue + bill.penaltyAmount, paymentMethod },
+    req,
+  });
 
   return res.status(200).json(
     new ApiResponse(

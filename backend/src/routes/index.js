@@ -9,6 +9,8 @@ import complaintRoutes from "./complaint.routes.js";
 import noticeRoutes from "./notice.routes.js";
 import amenityRoutes from "./amenity.routes.js";
 import emergencyRoutes from "./emergency.routes.js";
+import guidelineRoutes from "./guideline.routes.js";
+import auditLogRoutes from "./auditLog.routes.js";
 
 const router = Router();
 
@@ -22,5 +24,7 @@ router.use("/complaints", complaintRoutes);
 router.use("/notices", noticeRoutes);
 router.use("/amenities", amenityRoutes);
 router.use("/emergency", emergencyRoutes);
+router.use("/guidelines", guidelineRoutes);
+router.use("/audit-logs", auditLogRoutes);
 
 export default router;

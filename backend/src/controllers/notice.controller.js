@@ -8,10 +8,21 @@ import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
 // @route   POST /api/v1/notices
 // @access  Private (Admin)
 export const createNotice = asyncHandler(async (req, res) => {
-  const { title, content, category, targetAudience, isPoll, pollOptions, expiresAt } = req.body;
+  const { title, content, category, targetAudience, expiresAt } = req.body;
+  let { isPoll, pollOptions } = req.body;
 
   if (!title || !content) {
     throw new ApiError(400, "Please provide notice title and content.");
+  }
+
+  isPoll = isPoll === true || isPoll === "true";
+
+  if (typeof pollOptions === "string") {
+    try {
+      pollOptions = JSON.parse(pollOptions);
+    } catch {
+      pollOptions = [];
+    }
   }
 
   const attachments = [];
@@ -25,12 +36,14 @@ export const createNotice = asyncHandler(async (req, res) => {
   }
 
   let formattedPollOptions = [];
-  if (isPoll && Array.isArray(pollOptions)) {
+  if (isPoll && Array.isArray(pollOptions) && pollOptions.length > 0) {
     formattedPollOptions = pollOptions.map((opt) => ({
       optionText: typeof opt === "string" ? opt : opt.optionText,
       votesCount: 0,
       votedUserIds: [],
     }));
+  } else {
+    isPoll = false;
   }
 
   const notice = await Notice.create({
@@ -40,12 +53,26 @@ export const createNotice = asyncHandler(async (req, res) => {
     targetAudience: targetAudience || "ALL",
     authorId: req.user._id,
     attachments,
-    isPoll: !!isPoll,
+    isPoll,
     pollOptions: formattedPollOptions,
     expiresAt: expiresAt ? new Date(expiresAt) : null,
   });
 
   return res.status(201).json(new ApiResponse(201, notice, "Notice published successfully"));
+});
+
+// @desc    Delete a notice or poll (Admin)
+// @route   DELETE /api/v1/notices/:id
+// @access  Private (Admin)
+export const deleteNotice = asyncHandler(async (req, res) => {
+  const notice = await Notice.findById(req.params.id);
+  if (!notice) {
+    throw new ApiError(404, "Notice not found.");
+  }
+
+  await notice.deleteOne();
+
+  return res.status(200).json(new ApiResponse(200, {}, "Notice deleted successfully"));
 });
 
 // @desc    Get all active notices (Admin, Resident, Guard, Staff)

@@ -168,6 +168,7 @@ function AdminDashboard({ data }) {
       meter: occupancy.totalFlats
         ? { value: occupancy.ownerOccupied + occupancy.tenantOccupied, max: occupancy.totalFlats }
         : null,
+      onClick: () => navigate(ROUTES.FLATS),
     },
     {
       icon: IconAlertCircle,
@@ -175,6 +176,7 @@ function AdminDashboard({ data }) {
       value: openComplaints.length,
       tint: "warning",
       trend: dailyTrend(complaints, 8).map((d) => d.value),
+      onClick: () => navigate(ROUTES.COMPLAINTS),
     },
     {
       icon: IconUsers,
@@ -182,6 +184,7 @@ function AdminDashboard({ data }) {
       value: todayVisitors.length,
       tint: "success",
       trend: dailyTrend(visitors, 8).map((d) => d.value),
+      onClick: () => navigate(ROUTES.VISITORS),
     },
     {
       icon: IconCreditCard,
@@ -192,6 +195,7 @@ function AdminDashboard({ data }) {
         : "No invoices generated yet",
       tint: "info",
       meter: collection.totalInvoiced ? { value: collection.totalCollected, max: collection.totalInvoiced } : null,
+      onClick: () => navigate(ROUTES.BILLING),
     },
   ];
 
@@ -230,31 +234,53 @@ function AdminDashboard({ data }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-line bg-surface p-5">
-          <div>
-            <h2 className="text-base font-semibold text-ink">Complaints Trend</h2>
-            <p className="text-sm text-ink-faint">Last 14 days</p>
-          </div>
-          <div className="mt-4">
-            <AreaChart data={dailyTrend(complaints, 14)} formatValue={(v) => `${v} complaint${v === 1 ? "" : "s"}`} />
-          </div>
-        </div>
+        {(() => {
+          const trend = dailyTrend(complaints, 14);
+          const periodTotal = trend.reduce((sum, d) => sum + d.value, 0);
+          return (
+            <div className="group rounded-2xl border border-line bg-surface p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/40">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-ink">Complaints Trend</h2>
+                  <p className="text-sm text-ink-faint">Last 14 days</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-semibold leading-none tracking-tight text-ink">{periodTotal}</p>
+                  <p className="mt-1 text-xs text-ink-ghost">this period</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <AreaChart data={trend} formatValue={(v) => `${v} complaint${v === 1 ? "" : "s"}`} axisFormat={(v) => v} />
+              </div>
+            </div>
+          );
+        })()}
 
-        <div className="rounded-xl border border-line bg-surface p-5">
-          <div>
-            <h2 className="text-base font-semibold text-ink">Maintenance Collection</h2>
-            <p className="text-sm text-ink-faint">Collected vs billed, by month</p>
+        <div className="group rounded-2xl border border-line bg-surface p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/40">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-ink">Maintenance Collection</h2>
+              <p className="text-sm text-ink-faint">Collected vs billed, by month</p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-semibold leading-none tracking-tight text-ink">{formatCurrency(collection.totalCollected)}</p>
+              <p className="mt-1 text-xs text-ink-ghost">collected</p>
+            </div>
           </div>
           <div className="mt-4">
             {monthlyBillingTrend(bills).length > 0 ? (
-              <BarChart data={monthlyBillingTrend(bills)} formatValue={formatCurrency} />
+              <BarChart
+                data={monthlyBillingTrend(bills)}
+                formatValue={formatCurrency}
+                axisFormat={(v) => (v >= 1000 ? `${Math.round(v / 1000)}K` : v)}
+              />
             ) : (
               <EmptyState icon={IconCreditCard} title="No bills generated yet" />
             )}
@@ -294,13 +320,24 @@ function AdminDashboard({ data }) {
         </div>
 
         <div className="space-y-5">
-          <Panel title="Notices">
+          <Panel
+            title="Notices"
+            action={
+              <button onClick={() => navigate(ROUTES.NOTICES)} className="text-sm font-medium text-ink-faint transition hover:text-ink">
+                View all
+              </button>
+            }
+          >
             {notices.length === 0 ? (
               <EmptyState icon={IconMegaphone} title="No notices published" />
             ) : (
               <ul className="divide-y divide-line-soft">
                 {notices.slice(0, 3).map((n) => (
-                  <li key={n._id} className="flex items-start justify-between gap-3 px-5 py-3.5">
+                  <li
+                    key={n._id}
+                    onClick={() => navigate(ROUTES.NOTICES)}
+                    className="flex cursor-pointer items-start justify-between gap-3 px-5 py-3.5 transition hover:bg-surface-hover"
+                  >
                     <div className="min-w-0">
                       <p className="truncate text-[15px] text-ink-dim">{n.title}</p>
                       <p className="mt-1 text-sm text-ink-faint">{formatDate(n.createdAt)}</p>
@@ -314,7 +351,11 @@ function AdminDashboard({ data }) {
             )}
           </Panel>
 
-          <div className="rounded-xl border border-line bg-surface p-5">
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.EMERGENCY)}
+            className="w-full rounded-xl border border-line bg-surface p-5 text-left transition hover:border-transparent hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/40"
+          >
             {alerts.length === 0 ? (
               <>
                 <div className="flex items-center gap-3">
@@ -346,7 +387,7 @@ function AdminDashboard({ data }) {
               <IconClock className="h-4 w-4" />
               Updated just now
             </p>
-          </div>
+          </button>
         </div>
       </div>
     </div>
@@ -369,6 +410,7 @@ function ResidentDashboard({ data, user }) {
       value: formatCurrency(totalDue),
       sub: `${pendingBills.length} bill${pendingBills.length === 1 ? "" : "s"} pending`,
       tint: totalDue > 0 ? "warning" : "success",
+      onClick: () => navigate(ROUTES.BILLING),
     },
     {
       icon: IconAlertCircle,
@@ -376,6 +418,7 @@ function ResidentDashboard({ data, user }) {
       value: complaints.length,
       sub: `${openComplaints.length} open`,
       tint: "info",
+      onClick: () => navigate(ROUTES.COMPLAINTS),
     },
     {
       icon: IconCalendar,
@@ -383,6 +426,7 @@ function ResidentDashboard({ data, user }) {
       value: upcomingBookings.length,
       sub: "Amenity reservations",
       tint: "neutral",
+      onClick: () => navigate(ROUTES.AMENITIES),
     },
   ];
 
@@ -406,7 +450,7 @@ function ResidentDashboard({ data, user }) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
@@ -433,13 +477,24 @@ function ResidentDashboard({ data, user }) {
           />
         </div>
 
-        <Panel title="Notices">
+        <Panel
+          title="Notices"
+          action={
+            <button onClick={() => navigate(ROUTES.NOTICES)} className="text-sm font-medium text-ink-faint transition hover:text-ink">
+              View all
+            </button>
+          }
+        >
           {notices.length === 0 ? (
             <EmptyState icon={IconMegaphone} title="No notices yet" />
           ) : (
             <ul className="divide-y divide-line-soft">
               {notices.slice(0, 4).map((n) => (
-                <li key={n._id} className="flex items-start justify-between gap-3 px-5 py-3.5">
+                <li
+                  key={n._id}
+                  onClick={() => navigate(ROUTES.NOTICES)}
+                  className="flex cursor-pointer items-start justify-between gap-3 px-5 py-3.5 transition hover:bg-surface-hover"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-[15px] text-ink-dim">{n.title}</p>
                     <p className="mt-1 text-sm text-ink-faint">{formatDate(n.createdAt)}</p>
@@ -456,15 +511,28 @@ function ResidentDashboard({ data, user }) {
 }
 
 function GuardDashboard({ data }) {
+  const navigate = useNavigate();
   const { visitors, overstay, alerts } = data;
   const todayVisitors = visitors.filter((v) => isToday(v.createdAt));
   const checkedIn = visitors.filter((v) => v.status === "CHECKED_IN");
 
   const stats = [
-    { icon: IconUsers, label: "Visitors Today", value: todayVisitors.length, tint: "success" },
-    { icon: IconClock, label: "Currently Inside", value: checkedIn.length, tint: "info" },
-    { icon: IconAlertCircle, label: "Overstay Alerts", value: overstay.length, tint: overstay.length > 0 ? "warning" : "neutral" },
-    { icon: IconShield, label: "Emergency Alerts", value: alerts.length, tint: alerts.length > 0 ? "warning" : "success" },
+    { icon: IconUsers, label: "Visitors Today", value: todayVisitors.length, tint: "success", onClick: () => navigate(ROUTES.VISITORS) },
+    { icon: IconClock, label: "Currently Inside", value: checkedIn.length, tint: "info", onClick: () => navigate(ROUTES.VISITORS) },
+    {
+      icon: IconAlertCircle,
+      label: "Overstay Alerts",
+      value: overstay.length,
+      tint: overstay.length > 0 ? "warning" : "neutral",
+      onClick: () => navigate(ROUTES.VISITORS),
+    },
+    {
+      icon: IconShield,
+      label: "Emergency Alerts",
+      value: alerts.length,
+      tint: alerts.length > 0 ? "warning" : "success",
+      onClick: () => navigate(ROUTES.EMERGENCY),
+    },
   ];
 
   const visitorColumns = [
@@ -484,7 +552,7 @@ function GuardDashboard({ data }) {
     <div className="space-y-7">
       <SectionHeader eyebrow="Gate Overview" title="Guard Dashboard" subtitle={today()} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
@@ -516,9 +584,9 @@ function StaffDashboard({ data }) {
   });
 
   const stats = [
-    { icon: IconAlertCircle, label: "Assigned Tickets", value: complaints.length, tint: "info" },
-    { icon: IconClock, label: "Open / In Progress", value: openTickets.length, tint: "warning" },
-    { icon: IconShield, label: "Resolved This Month", value: resolvedThisMonth.length, tint: "success" },
+    { icon: IconAlertCircle, label: "Assigned Tickets", value: complaints.length, tint: "info", onClick: () => navigate(ROUTES.COMPLAINTS) },
+    { icon: IconClock, label: "Open / In Progress", value: openTickets.length, tint: "warning", onClick: () => navigate(ROUTES.COMPLAINTS) },
+    { icon: IconShield, label: "Resolved This Month", value: resolvedThisMonth.length, tint: "success", onClick: () => navigate(ROUTES.COMPLAINTS) },
   ];
 
   const complaintColumns = [
@@ -545,7 +613,7 @@ function StaffDashboard({ data }) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
