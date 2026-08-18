@@ -11,6 +11,14 @@ import SelectField from "@/components/ui/SelectField";
 import Loader from "@/components/ui/Loader";
 import { formatDate } from "@/lib/date";
 import { ROLE_LABELS } from "@/constants";
+import {
+  validateEmail,
+  validatePassword,
+  validateName,
+  validatePhone,
+  validatePasswordMatch,
+  validateRequired,
+} from "@/utils/validators";
 import { IconPlus, IconPencil, IconTrash, IconUsers, IconCar, IconLock, IconWrench, IconShield, IconUser } from "@/components/ui/icons";
 
 const ROLES = ["Resident", "Guard", "Staff", "Admin"];
@@ -30,6 +38,7 @@ export default function Users() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [createFieldErrors, setCreateFieldErrors] = useState({});
   const [createError, setCreateError] = useState("");
 
   const [editTarget, setEditTarget] = useState(null);
@@ -41,6 +50,7 @@ export default function Users() {
 
   const [resetTarget, setResetTarget] = useState(null);
   const [resetForm, setResetForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [resetFieldErrors, setResetFieldErrors] = useState({});
   const [resetError, setResetError] = useState("");
 
   const fetchUsers = async () => {
@@ -62,9 +72,31 @@ export default function Users() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreateError("");
+    const nameErr = validateName(createForm.name);
+    const emailErr = validateEmail(createForm.email);
+    const phoneErr = validatePhone(createForm.phone);
+    const passErr = validatePassword(createForm.password);
+    const profErr = createForm.role === "Staff" ? validateRequired(createForm.profession, "Profession") : "";
+
+    if (nameErr || emailErr || phoneErr || passErr || profErr) {
+      setCreateFieldErrors({
+        name: nameErr,
+        email: emailErr,
+        phone: phoneErr,
+        password: passErr,
+        profession: profErr,
+      });
+      return;
+    }
+    setCreateFieldErrors({});
     setSubmitting(true);
     try {
-      await authService.register(createForm);
+      await authService.register({
+        ...createForm,
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+      });
       setCreateOpen(false);
       setCreateForm(emptyCreateForm);
       fetchUsers();
@@ -98,18 +130,21 @@ export default function Users() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setResetError("");
-    if (resetForm.newPassword.length < 6) {
-      setResetError("Password must be at least 6 characters.");
+    const passErr = validatePassword(resetForm.newPassword, 6);
+    const matchErr = validatePasswordMatch(resetForm.newPassword, resetForm.confirmPassword);
+    if (passErr || matchErr) {
+      setResetFieldErrors({
+        newPassword: passErr,
+        confirmPassword: matchErr,
+      });
       return;
     }
-    if (resetForm.newPassword !== resetForm.confirmPassword) {
-      setResetError("Passwords do not match.");
-      return;
-    }
+    setResetFieldErrors({});
     setSubmitting(true);
     try {
       await userService.resetPassword(resetTarget._id, resetForm.newPassword);
       setResetTarget(null);
+      setResetForm({ newPassword: "", confirmPassword: "" });
     } catch (err) {
       setResetError(err.message || "Failed to reset password");
     } finally {
@@ -263,16 +298,48 @@ export default function Users() {
               {createError}
             </div>
           )}
-          <TextField label="Full name" required value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} />
-          <TextField label="Email" type="email" required value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} />
+          <TextField
+            label="Full name"
+            required
+            error={createFieldErrors.name}
+            value={createForm.name}
+            onChange={(e) => {
+              setCreateForm({ ...createForm, name: e.target.value });
+              if (createFieldErrors.name) setCreateFieldErrors({ ...createFieldErrors, name: "" });
+            }}
+          />
+          <TextField
+            label="Email"
+            type="email"
+            required
+            error={createFieldErrors.email}
+            value={createForm.email}
+            onChange={(e) => {
+              setCreateForm({ ...createForm, email: e.target.value });
+              if (createFieldErrors.email) setCreateFieldErrors({ ...createFieldErrors, email: "" });
+            }}
+          />
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="Phone" required value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} />
+            <TextField
+              label="Phone"
+              required
+              error={createFieldErrors.phone}
+              value={createForm.phone}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, phone: e.target.value });
+                if (createFieldErrors.phone) setCreateFieldErrors({ ...createFieldErrors, phone: "" });
+              }}
+            />
             <TextField
               label="Password"
               type="password"
               required
+              error={createFieldErrors.password}
               value={createForm.password}
-              onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, password: e.target.value });
+                if (createFieldErrors.password) setCreateFieldErrors({ ...createFieldErrors, password: "" });
+              }}
             />
           </div>
           <SelectField
@@ -285,8 +352,12 @@ export default function Users() {
             <SelectField
               label="Profession / Specialty"
               required
+              error={createFieldErrors.profession}
               value={createForm.profession}
-              onChange={(e) => setCreateForm({ ...createForm, profession: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, profession: e.target.value });
+                if (createFieldErrors.profession) setCreateFieldErrors({ ...createFieldErrors, profession: "" });
+              }}
               options={[{ label: "Select profession", value: "" }, ...PROFESSIONS.map((p) => ({ label: p, value: p }))]}
             />
           )}
@@ -390,15 +461,23 @@ export default function Users() {
             label="New password"
             type="password"
             required
+            error={resetFieldErrors.newPassword}
             value={resetForm.newPassword}
-            onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
+            onChange={(e) => {
+              setResetForm({ ...resetForm, newPassword: e.target.value });
+              if (resetFieldErrors.newPassword) setResetFieldErrors({ ...resetFieldErrors, newPassword: "" });
+            }}
           />
           <TextField
             label="Confirm new password"
             type="password"
             required
+            error={resetFieldErrors.confirmPassword}
             value={resetForm.confirmPassword}
-            onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
+            onChange={(e) => {
+              setResetForm({ ...resetForm, confirmPassword: e.target.value });
+              if (resetFieldErrors.confirmPassword) setResetFieldErrors({ ...resetFieldErrors, confirmPassword: "" });
+            }}
           />
         </form>
       </Modal>

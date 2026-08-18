@@ -11,6 +11,18 @@ export const getOverstayAlerts = async () => {
 };
 
 export const generateVisitorPass = async (payload) => {
+  // Photo is optional — only switch to multipart/form-data when one is attached,
+  // so the plain no-photo case still posts as simple JSON like before.
+  if (payload.photo) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) formData.append(key, value);
+    });
+    const res = await axiosClient.post("/visitors/generate-pass", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  }
   const res = await axiosClient.post("/visitors/generate-pass", payload);
   return res.data;
 };

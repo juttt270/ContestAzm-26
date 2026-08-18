@@ -9,6 +9,7 @@ import TextareaField from "@/components/ui/TextareaField";
 import SelectField from "@/components/ui/SelectField";
 import Loader from "@/components/ui/Loader";
 import EmptyState from "@/components/ui/EmptyState";
+import { validateRequired } from "@/utils/validators";
 import { IconBook, IconPlus, IconPencil, IconTrash } from "@/components/ui/icons";
 
 const CATEGORIES = ["General", "Safety", "Parking", "Amenities", "Maintenance", "Pets"];
@@ -28,6 +29,7 @@ export default function Guidelines() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -56,14 +58,29 @@ export default function Guidelines() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
-    if (!form.title.trim() || !form.content.trim()) {
-      setFormError("Title and content are required.");
+    const titleErr = validateRequired(form.title, "Title", 3, 100);
+    const contentErr = validateRequired(form.content, "Content", 5, 2000);
+
+    if (titleErr || contentErr) {
+      setFieldErrors({
+        title: titleErr,
+        content: contentErr,
+      });
       return;
     }
+    setFieldErrors({});
     setSubmitting(true);
     try {
-      if (editTarget) await guidelineService.updateGuideline(editTarget._id, form);
-      else await guidelineService.createGuideline(form);
+      if (editTarget) await guidelineService.updateGuideline(editTarget._id, {
+        ...form,
+        title: form.title.trim(),
+        content: form.content.trim(),
+      });
+      else await guidelineService.createGuideline({
+        ...form,
+        title: form.title.trim(),
+        content: form.content.trim(),
+      });
       setFormOpen(false);
       fetchGuidelines();
     } catch (err) {
@@ -191,7 +208,16 @@ export default function Guidelines() {
               {formError}
             </div>
           )}
-          <TextField label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <TextField
+            label="Title"
+            required
+            error={fieldErrors.title}
+            value={form.title}
+            onChange={(e) => {
+              setForm({ ...form, title: e.target.value });
+              if (fieldErrors.title) setFieldErrors({ ...fieldErrors, title: "" });
+            }}
+          />
           <SelectField
             label="Category"
             value={form.category}
@@ -202,8 +228,12 @@ export default function Guidelines() {
             label="Content"
             required
             rows={5}
+            error={fieldErrors.content}
             value={form.content}
-            onChange={(e) => setForm({ ...form, content: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, content: e.target.value });
+              if (fieldErrors.content) setFieldErrors({ ...fieldErrors, content: "" });
+            }}
           />
         </form>
       </Modal>

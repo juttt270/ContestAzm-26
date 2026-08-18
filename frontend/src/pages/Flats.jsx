@@ -9,6 +9,11 @@ import TextField from "@/components/ui/TextField";
 import SelectField from "@/components/ui/SelectField";
 import StatCard from "@/components/ui/StatCard";
 import Loader from "@/components/ui/Loader";
+import {
+  validateRequired,
+  validateFlatNumber,
+  validatePositiveNumber,
+} from "@/utils/validators";
 import { IconPlus, IconUserPlus, IconBuilding } from "@/components/ui/icons";
 
 const OCCUPANCY_VARIANT = { Owner: "success", Tenant: "info", Vacant: "neutral" };
@@ -23,11 +28,13 @@ export default function Flats() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [createFieldErrors, setCreateFieldErrors] = useState({});
   const [createError, setCreateError] = useState("");
 
   const [assignTarget, setAssignTarget] = useState(null);
   const [residents, setResidents] = useState([]);
   const [assignForm, setAssignForm] = useState({ userId: "", occupancyType: "Owner" });
+  const [assignFieldErrors, setAssignFieldErrors] = useState({});
   const [assignError, setAssignError] = useState("");
 
   const fetchAll = async () => {
@@ -51,6 +58,7 @@ export default function Flats() {
   const openAssign = async (row) => {
     setAssignTarget(row);
     setAssignForm({ userId: "", occupancyType: "Owner" });
+    setAssignFieldErrors({});
     setAssignError("");
     try {
       setResidents(await userService.getUsers({ role: "Resident", isActive: "true" }));
@@ -62,10 +70,27 @@ export default function Flats() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreateError("");
+    const blockErr = validateRequired(createForm.blockName, "Block name", 1, 15);
+    const flatErr = validateFlatNumber(createForm.flatNumber);
+    const floorErr = validatePositiveNumber(createForm.floor, "Floor", 0, 150);
+    const rateErr = validatePositiveNumber(createForm.maintenanceRate, "Maintenance rate", 1);
+
+    if (blockErr || flatErr || floorErr || rateErr) {
+      setCreateFieldErrors({
+        blockName: blockErr,
+        flatNumber: flatErr,
+        floor: floorErr,
+        maintenanceRate: rateErr,
+      });
+      return;
+    }
+    setCreateFieldErrors({});
     setSubmitting(true);
     try {
       await flatService.createFlat({
         ...createForm,
+        blockName: createForm.blockName.trim().toUpperCase(),
+        flatNumber: createForm.flatNumber.trim(),
         floor: Number(createForm.floor),
         maintenanceRate: Number(createForm.maintenanceRate),
       });
@@ -81,10 +106,12 @@ export default function Flats() {
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!assignForm.userId) {
-      setAssignError("Please select a resident");
+    const userErr = validateRequired(assignForm.userId, "Resident selection");
+    if (userErr) {
+      setAssignFieldErrors({ userId: userErr });
       return;
     }
+    setAssignFieldErrors({});
     setAssignError("");
     setSubmitting(true);
     try {
@@ -192,15 +219,23 @@ export default function Flats() {
             <TextField
               label="Block name"
               required
+              error={createFieldErrors.blockName}
               value={createForm.blockName}
-              onChange={(e) => setCreateForm({ ...createForm, blockName: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, blockName: e.target.value });
+                if (createFieldErrors.blockName) setCreateFieldErrors({ ...createFieldErrors, blockName: "" });
+              }}
               placeholder="e.g. A"
             />
             <TextField
               label="Flat number"
               required
+              error={createFieldErrors.flatNumber}
               value={createForm.flatNumber}
-              onChange={(e) => setCreateForm({ ...createForm, flatNumber: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, flatNumber: e.target.value });
+                if (createFieldErrors.flatNumber) setCreateFieldErrors({ ...createFieldErrors, flatNumber: "" });
+              }}
               placeholder="e.g. 101"
             />
           </div>
@@ -209,15 +244,23 @@ export default function Flats() {
               label="Floor"
               type="number"
               required
+              error={createFieldErrors.floor}
               value={createForm.floor}
-              onChange={(e) => setCreateForm({ ...createForm, floor: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, floor: e.target.value });
+                if (createFieldErrors.floor) setCreateFieldErrors({ ...createFieldErrors, floor: "" });
+              }}
             />
             <TextField
               label="Maintenance rate (Rs)"
               type="number"
               required
+              error={createFieldErrors.maintenanceRate}
               value={createForm.maintenanceRate}
-              onChange={(e) => setCreateForm({ ...createForm, maintenanceRate: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, maintenanceRate: e.target.value });
+                if (createFieldErrors.maintenanceRate) setCreateFieldErrors({ ...createFieldErrors, maintenanceRate: "" });
+              }}
             />
           </div>
         </form>
@@ -247,8 +290,13 @@ export default function Flats() {
           )}
           <SelectField
             label="Resident"
+            required
+            error={assignFieldErrors.userId}
             value={assignForm.userId}
-            onChange={(e) => setAssignForm({ ...assignForm, userId: e.target.value })}
+            onChange={(e) => {
+              setAssignForm({ ...assignForm, userId: e.target.value });
+              if (assignFieldErrors.userId) setAssignFieldErrors({ ...assignFieldErrors, userId: "" });
+            }}
             options={[
               { label: residents.length ? "Select resident" : "No residents found", value: "" },
               ...residents.map((r) => ({ label: `${r.name} (${r.email})`, value: r._id })),

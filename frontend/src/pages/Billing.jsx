@@ -13,6 +13,10 @@ import Loader from "@/components/ui/Loader";
 import { formatDate } from "@/lib/date";
 import { formatCurrency } from "@/lib/currency";
 import { downloadBillReceipt } from "@/lib/generateReceipt";
+import {
+  validateBillingMonth,
+  validateRequired,
+} from "@/utils/validators";
 import { IconCreditCard, IconPlus, IconAlertCircle, IconEye, IconDownload } from "@/components/ui/icons";
 
 const flatLabel = (flat) => (flat ? `${flat.blockName}-${flat.flatNumber}` : "—");
@@ -33,6 +37,7 @@ export default function Billing() {
 
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateForm, setGenerateForm] = useState({ billingMonth: currentBillingMonth(), dueDate: "" });
+  const [generateFieldErrors, setGenerateFieldErrors] = useState({});
   const [generateError, setGenerateError] = useState("");
 
   const [penaltyOpen, setPenaltyOpen] = useState(false);
@@ -67,6 +72,17 @@ export default function Billing() {
   const handleGenerate = async (e) => {
     e.preventDefault();
     setGenerateError("");
+    const monthErr = validateBillingMonth(generateForm.billingMonth);
+    const dueErr = validateRequired(generateForm.dueDate, "Due date");
+
+    if (monthErr || dueErr) {
+      setGenerateFieldErrors({
+        billingMonth: monthErr,
+        dueDate: dueErr,
+      });
+      return;
+    }
+    setGenerateFieldErrors({});
     setSubmitting(true);
     try {
       await billingService.generateMonthlyBills(generateForm);
@@ -220,15 +236,23 @@ export default function Billing() {
             label="Billing month"
             required
             placeholder="YYYY-MM"
+            error={generateFieldErrors.billingMonth}
             value={generateForm.billingMonth}
-            onChange={(e) => setGenerateForm({ ...generateForm, billingMonth: e.target.value })}
+            onChange={(e) => {
+              setGenerateForm({ ...generateForm, billingMonth: e.target.value });
+              if (generateFieldErrors.billingMonth) setGenerateFieldErrors({ ...generateFieldErrors, billingMonth: "" });
+            }}
           />
           <TextField
             label="Due date"
             type="date"
             required
+            error={generateFieldErrors.dueDate}
             value={generateForm.dueDate}
-            onChange={(e) => setGenerateForm({ ...generateForm, dueDate: e.target.value })}
+            onChange={(e) => {
+              setGenerateForm({ ...generateForm, dueDate: e.target.value });
+              if (generateFieldErrors.dueDate) setGenerateFieldErrors({ ...generateFieldErrors, dueDate: "" });
+            }}
           />
         </form>
       </Modal>

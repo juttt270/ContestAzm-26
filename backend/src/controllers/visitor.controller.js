@@ -36,6 +36,15 @@ export const generateVisitorPass = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Target flat is required. Resident must be assigned to a flat.");
   }
 
+  // Photo is entirely optional — the pass still generates fine without one.
+  let photoData = { url: "", public_id: "" };
+  if (req.file) {
+    const uploadResult = await uploadOnCloudinary(req.file.path, "smart_society/visitors");
+    if (uploadResult) {
+      photoData = { url: uploadResult.url, public_id: uploadResult.public_id };
+    }
+  }
+
   let passCode = generatePassCode();
   while (await Visitor.findOne({ passCode })) {
     passCode = generatePassCode();
@@ -72,6 +81,7 @@ export const generateVisitorPass = asyncHandler(async (req, res) => {
     vehicleNumber: vehicleNumber || "N/A",
     purpose: purpose || "Personal Visit",
     visitorType: visitorType || "Guest",
+    photo: photoData,
     validFrom: validFromDate,
     validUntil: validUntilDate,
     status: "APPROVED",

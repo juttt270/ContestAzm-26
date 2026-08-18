@@ -16,7 +16,7 @@ const router = express.Router();
 router.use(protect);
 
 // Resident & Admin Pass Generation
-router.post("/generate-pass", authorizeRoles("Resident", "Admin"), generateVisitorPass);
+router.post("/generate-pass", authorizeRoles("Resident", "Admin"), upload.single("photo"), generateVisitorPass);
 router.put("/:id/cancel", authorizeRoles("Resident", "Admin"), cancelVisitorPass);
 
 // Guard Terminal Verification & QR Scanning

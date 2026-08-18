@@ -4,6 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { QrCode, CreditCard, Calendar, Search, ArrowRight, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import heroImg from '@/assets/images/society-hero.png'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import FoldText from '@/marketing/ui/FoldText.jsx'
 import * as billingService from '@/services/billingService'
 import { formatCurrency } from '@/lib/currency'
@@ -12,6 +13,7 @@ import { formatDate } from '@/lib/date'
 gsap.registerPlugin(ScrollTrigger)
 
 export default function Hero() {
+  const { isAuthenticated } = useAuth()
   const sectionRef = useRef(null)
   const layer1Ref = useRef(null)
   const layer2Ref = useRef(null)
@@ -161,10 +163,10 @@ export default function Hero() {
         </p>
 
         <Link
-          to="/login"
+          to={isAuthenticated ? "/dashboard" : "/login"}
           className="mt-6 sm:mt-8 bg-white text-black px-8 py-3.5 sm:py-4 rounded-full font-semibold hover:bg-[#f4f4f4] transition-colors cursor-pointer border-0 text-sm sm:text-base z-20 no-underline"
         >
-          Get Started
+          {isAuthenticated ? "Go to Dashboard" : "Get Started"}
         </Link>
       </div>
 

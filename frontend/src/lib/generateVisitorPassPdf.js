@@ -4,8 +4,31 @@ import { formatDate } from "@/lib/date";
 const flatLabel = (flat) => (flat ? `${flat.blockName}-${flat.flatNumber}` : "—");
 const dt = (iso) => formatDate(iso, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+/** Fetches a remote image URL and resolves it to a data URL jsPDF can embed.
+ *  Resolves to null on any failure — the photo is optional, so the pass must
+ *  still generate fine without it. */
+const toDataUrl = (url) =>
+  new Promise((resolve) => {
+    if (!url) return resolve(null);
+    fetch(url)
+      .then((r) => r.blob())
+      .then(
+        (blob) =>
+          new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result);
+            reader.onerror = () => res(null);
+            reader.readAsDataURL(blob);
+          })
+      )
+      .then(resolve)
+      .catch(() => resolve(null));
+  });
+
 /** Builds and downloads a compact visitor gate pass — a printable ID-badge-style card, not a full page. */
-export function downloadVisitorPassPdf(visitor) {
+export async function downloadVisitorPassPdf(visitor) {
+  const photoDataUrl = await toDataUrl(visitor.photo?.url);
+
   const W = 140;
   const H = 90;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [W, H] });
@@ -59,8 +82,23 @@ export function downloadVisitorPassPdf(visitor) {
   doc.text(visitor.passCode, qrX + qrSize / 2, qrY + qrSize + 16, { align: "center" });
   doc.setFont("helvetica", "normal");
 
+  // ---- Visitor photo (optional — layout is identical to before when absent) ----
+  const baseLeftX = 8;
+  const photoSize = 18;
+  let leftX = baseLeftX;
+  if (photoDataUrl) {
+    try {
+      doc.setDrawColor(230, 230, 230);
+      doc.roundedRect(baseLeftX - 0.5, 24.5, photoSize + 1, photoSize + 1, 2, 2, "S");
+      doc.addImage(photoDataUrl, baseLeftX, 25, photoSize, photoSize, undefined, "FAST");
+      leftX = baseLeftX + photoSize + 5;
+    } catch {
+      // Corrupt/unsupported image data — fall back to the no-photo layout.
+      leftX = baseLeftX;
+    }
+  }
+
   // ---- Visitor details (left side) ----
-  const leftX = 8;
   let y = 25;
 
   doc.setFontSize(6.5);
@@ -96,10 +134,10 @@ export function downloadVisitorPassPdf(visitor) {
   doc.rect(1, H - 15, W - 2, 14, "F");
   doc.setFontSize(6.5);
   doc.setTextColor(140, 140, 140);
-  doc.text("VALID", leftX, H - 9.5);
+  doc.text("VALID", baseLeftX, H - 9.5);
   doc.setFontSize(8.5);
   doc.setTextColor(40, 40, 40);
-  doc.text(`${dt(visitor.validFrom)}  →  ${dt(visitor.validUntil)}`, leftX, H - 5);
+  doc.text(`${dt(visitor.validFrom)}  →  ${dt(visitor.validUntil)}`, baseLeftX, H - 5);
 
   doc.setFontSize(6.5);
   doc.setTextColor(140, 140, 140);

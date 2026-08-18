@@ -8,6 +8,11 @@ import TextField from "@/components/ui/TextField";
 import Loader from "@/components/ui/Loader";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatDate } from "@/lib/date";
+import {
+  validateName,
+  validatePhone,
+  validateRequired,
+} from "@/utils/validators";
 import { IconSiren, IconShield, IconCheck, IconPhone, IconPlus, IconTrash } from "@/components/ui/icons";
 
 const ALERT_TYPES = ["Fire", "Medical", "Security", "LiftStuck", "General"];
@@ -26,12 +31,14 @@ export default function Emergency() {
 
   const [triggerOpen, setTriggerOpen] = useState(false);
   const [form, setForm] = useState({ alertType: "Security", locationDetails: "" });
+  const [formFieldErrors, setFormFieldErrors] = useState({});
   const [formError, setFormError] = useState("");
 
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactForm, setContactForm] = useState(emptyContactForm);
+  const [contactFieldErrors, setContactFieldErrors] = useState({});
   const [contactError, setContactError] = useState("");
   const [deleteContactTarget, setDeleteContactTarget] = useState(null);
 
@@ -66,14 +73,29 @@ export default function Emergency() {
   const handleAddContact = async (e) => {
     e.preventDefault();
     setContactError("");
-    if (!contactForm.name.trim() || !contactForm.phone.trim()) {
-      setContactError("Name and phone are required.");
+    const nameErr = validateName(contactForm.name, "Contact name");
+    const phoneErr = validatePhone(contactForm.phone, "Phone number");
+    const desigErr = validateRequired(contactForm.designation, "Designation", 2, 50);
+
+    if (nameErr || phoneErr || desigErr) {
+      setContactFieldErrors({
+        name: nameErr,
+        phone: phoneErr,
+        designation: desigErr,
+      });
       return;
     }
+    setContactFieldErrors({});
     setSubmitting(true);
     try {
-      await emergencyService.createEmergencyContact(contactForm);
+      await emergencyService.createEmergencyContact({
+        ...contactForm,
+        name: contactForm.name.trim(),
+        phone: contactForm.phone.trim(),
+        designation: contactForm.designation.trim(),
+      });
       setContactOpen(false);
+      setContactForm(emptyContactForm);
       fetchContacts();
     } catch (err) {
       setContactError(err.message || "Failed to add contact");
@@ -90,9 +112,18 @@ export default function Emergency() {
   const handleTrigger = async (e) => {
     e.preventDefault();
     setFormError("");
+    const locErr = validateRequired(form.locationDetails, "Location details", 3, 150);
+    if (locErr) {
+      setFormFieldErrors({ locationDetails: locErr });
+      return;
+    }
+    setFormFieldErrors({});
     setSubmitting(true);
     try {
-      await emergencyService.triggerAlert(form);
+      await emergencyService.triggerAlert({
+        ...form,
+        locationDetails: form.locationDetails.trim(),
+      });
       setTriggerOpen(false);
       setForm({ alertType: "Security", locationDetails: "" });
       fetchAlerts();
@@ -293,8 +324,13 @@ export default function Emergency() {
           />
           <TextField
             label="Location details"
+            required
+            error={formFieldErrors.locationDetails}
             value={form.locationDetails}
-            onChange={(e) => setForm({ ...form, locationDetails: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, locationDetails: e.target.value });
+              if (formFieldErrors.locationDetails) setFormFieldErrors({ ...formFieldErrors, locationDetails: "" });
+            }}
             placeholder="e.g. Block B - 3rd Floor Corridor"
           />
         </form>
@@ -322,14 +358,37 @@ export default function Emergency() {
               {contactError}
             </div>
           )}
-          <TextField label="Name" required value={contactForm.name} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} />
+          <TextField
+            label="Name"
+            required
+            error={contactFieldErrors.name}
+            value={contactForm.name}
+            onChange={(e) => {
+              setContactForm({ ...contactForm, name: e.target.value });
+              if (contactFieldErrors.name) setContactFieldErrors({ ...contactFieldErrors, name: "" });
+            }}
+          />
           <TextField
             label="Designation"
+            required
+            error={contactFieldErrors.designation}
             placeholder="e.g. Society Secretary"
             value={contactForm.designation}
-            onChange={(e) => setContactForm({ ...contactForm, designation: e.target.value })}
+            onChange={(e) => {
+              setContactForm({ ...contactForm, designation: e.target.value });
+              if (contactFieldErrors.designation) setContactFieldErrors({ ...contactFieldErrors, designation: "" });
+            }}
           />
-          <TextField label="Phone" required value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} />
+          <TextField
+            label="Phone"
+            required
+            error={contactFieldErrors.phone}
+            value={contactForm.phone}
+            onChange={(e) => {
+              setContactForm({ ...contactForm, phone: e.target.value });
+              if (contactFieldErrors.phone) setContactFieldErrors({ ...contactFieldErrors, phone: "" });
+            }}
+          />
           <SelectField
             label="Type"
             value={contactForm.type}

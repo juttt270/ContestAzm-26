@@ -11,6 +11,12 @@ import Loader from "@/components/ui/Loader";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/date";
 import { formatCurrency } from "@/lib/currency";
+import {
+  validateRequired,
+  validatePositiveNumber,
+  validateFutureDate,
+  validateTimeSlot,
+} from "@/utils/validators";
 import { IconPlus, IconCalendar, IconClock, IconUsers, IconCheck } from "@/components/ui/icons";
 
 const emptyCreateForm = { name: "", description: "", capacity: "20", bookingFee: "0" };
@@ -34,11 +40,13 @@ export default function Amenities() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [createFieldErrors, setCreateFieldErrors] = useState({});
   const [createImage, setCreateImage] = useState(null);
   const [createError, setCreateError] = useState("");
 
   const [bookTarget, setBookTarget] = useState(null);
   const [bookForm, setBookForm] = useState(emptyBookForm);
+  const [bookFieldErrors, setBookFieldErrors] = useState({});
   const [bookError, setBookError] = useState("");
   const [existingBookings, setExistingBookings] = useState([]);
 
@@ -66,10 +74,24 @@ export default function Amenities() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreateError("");
+    const nameErr = validateRequired(createForm.name, "Amenity name", 2, 60);
+    const capErr = validatePositiveNumber(createForm.capacity, "Capacity", 1, 1000);
+    const feeErr = validatePositiveNumber(createForm.bookingFee, "Booking fee", 0);
+
+    if (nameErr || capErr || feeErr) {
+      setCreateFieldErrors({
+        name: nameErr,
+        capacity: capErr,
+        bookingFee: feeErr,
+      });
+      return;
+    }
+    setCreateFieldErrors({});
     setSubmitting(true);
     try {
       await amenityService.createAmenity({
         ...createForm,
+        name: createForm.name.trim(),
         capacity: Number(createForm.capacity),
         bookingFee: Number(createForm.bookingFee),
         image: createImage,
@@ -88,6 +110,7 @@ export default function Amenities() {
   const openBook = (amenity) => {
     setBookTarget(amenity);
     setBookForm(emptyBookForm);
+    setBookFieldErrors({});
     setBookError("");
     setExistingBookings([]);
   };
@@ -106,6 +129,19 @@ export default function Amenities() {
   const handleBook = async (e) => {
     e.preventDefault();
     setBookError("");
+    const dateErr = validateFutureDate(bookForm.bookingDate, "Booking date");
+    const slotErr = validateTimeSlot(bookForm.startTime, bookForm.endTime);
+    const guestErr = validatePositiveNumber(bookForm.guestCount, "Guest count", 1, bookTarget?.capacity || 100);
+
+    if (dateErr || slotErr || guestErr) {
+      setBookFieldErrors({
+        bookingDate: dateErr,
+        timeSlot: slotErr,
+        guestCount: guestErr,
+      });
+      return;
+    }
+    setBookFieldErrors({});
     setSubmitting(true);
     try {
       await amenityService.bookAmenity(bookTarget._id, bookForm);
@@ -251,8 +287,12 @@ export default function Amenities() {
           <TextField
             label="Name"
             required
+            error={createFieldErrors.name}
             value={createForm.name}
-            onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+            onChange={(e) => {
+              setCreateForm({ ...createForm, name: e.target.value });
+              if (createFieldErrors.name) setCreateFieldErrors({ ...createFieldErrors, name: "" });
+            }}
             placeholder="e.g. Community Clubhouse"
           />
           <TextareaField
@@ -263,13 +303,28 @@ export default function Amenities() {
             placeholder="What residents can expect from this space..."
           />
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="Capacity" type="number" min="1" value={createForm.capacity} onChange={(e) => setCreateForm({ ...createForm, capacity: e.target.value })} />
+            <TextField
+              label="Capacity"
+              type="number"
+              min="1"
+              required
+              error={createFieldErrors.capacity}
+              value={createForm.capacity}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, capacity: e.target.value });
+                if (createFieldErrors.capacity) setCreateFieldErrors({ ...createFieldErrors, capacity: "" });
+              }}
+            />
             <TextField
               label="Booking fee (Rs)"
               type="number"
               min="0"
+              error={createFieldErrors.bookingFee}
               value={createForm.bookingFee}
-              onChange={(e) => setCreateForm({ ...createForm, bookingFee: e.target.value })}
+              onChange={(e) => {
+                setCreateForm({ ...createForm, bookingFee: e.target.value });
+                if (createFieldErrors.bookingFee) setCreateFieldErrors({ ...createFieldErrors, bookingFee: "" });
+              }}
             />
           </div>
         </form>
@@ -298,7 +353,17 @@ export default function Amenities() {
               {bookError}
             </div>
           )}
-          <TextField label="Date" type="date" required value={bookForm.bookingDate} onChange={(e) => checkDate(e.target.value)} />
+          <TextField
+            label="Date"
+            type="date"
+            required
+            error={bookFieldErrors.bookingDate}
+            value={bookForm.bookingDate}
+            onChange={(e) => {
+              checkDate(e.target.value);
+              if (bookFieldErrors.bookingDate) setBookFieldErrors({ ...bookFieldErrors, bookingDate: "" });
+            }}
+          />
           {existingBookings.length > 0 && (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400">
               Already booked: {existingBookings.map((b) => `${b.startTime}–${b.endTime}`).join(", ")}
@@ -309,15 +374,23 @@ export default function Amenities() {
               label="Start time"
               type="time"
               required
+              error={bookFieldErrors.timeSlot}
               value={bookForm.startTime}
-              onChange={(e) => setBookForm({ ...bookForm, startTime: e.target.value })}
+              onChange={(e) => {
+                setBookForm({ ...bookForm, startTime: e.target.value });
+                if (bookFieldErrors.timeSlot) setBookFieldErrors({ ...bookFieldErrors, timeSlot: "" });
+              }}
             />
             <TextField
               label="End time"
               type="time"
               required
+              error={bookFieldErrors.timeSlot}
               value={bookForm.endTime}
-              onChange={(e) => setBookForm({ ...bookForm, endTime: e.target.value })}
+              onChange={(e) => {
+                setBookForm({ ...bookForm, endTime: e.target.value });
+                if (bookFieldErrors.timeSlot) setBookFieldErrors({ ...bookFieldErrors, timeSlot: "" });
+              }}
             />
           </div>
           <TextField
@@ -326,8 +399,12 @@ export default function Amenities() {
             min="1"
             max={bookTarget?.capacity || undefined}
             required
+            error={bookFieldErrors.guestCount}
             value={bookForm.guestCount}
-            onChange={(e) => setBookForm({ ...bookForm, guestCount: e.target.value })}
+            onChange={(e) => {
+              setBookForm({ ...bookForm, guestCount: e.target.value });
+              if (bookFieldErrors.guestCount) setBookFieldErrors({ ...bookFieldErrors, guestCount: "" });
+            }}
           />
           <TextareaField
             label="Notes (optional)"

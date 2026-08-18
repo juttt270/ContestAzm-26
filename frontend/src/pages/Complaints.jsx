@@ -12,6 +12,7 @@ import SelectField from "@/components/ui/SelectField";
 import TextareaField from "@/components/ui/TextareaField";
 import ImageUpload from "@/components/ui/ImageUpload";
 import Loader from "@/components/ui/Loader";
+import { validateRequired } from "@/utils/validators";
 import { IconPlus, IconUserPlus, IconAlertCircle, IconClock } from "@/components/ui/icons";
 
 const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Security", "Cleanliness", "Other"];
@@ -37,6 +38,7 @@ export default function Complaints() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [photoFile, setPhotoFile] = useState(null);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -44,10 +46,12 @@ export default function Complaints() {
   const [assignTarget, setAssignTarget] = useState(null);
   const [staffOptions, setStaffOptions] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState("");
+  const [assignFieldErrors, setAssignFieldErrors] = useState({});
   const [assignError, setAssignError] = useState("");
 
   const [statusTarget, setStatusTarget] = useState(null);
   const [statusForm, setStatusForm] = useState({ status: "IN_PROGRESS", resolutionNotes: "" });
+  const [statusFieldErrors, setStatusFieldErrors] = useState({});
   const [statusError, setStatusError] = useState("");
 
   const canCreate = role === "Resident" || role === "Admin";
@@ -72,6 +76,7 @@ export default function Complaints() {
   const openAssign = async (row) => {
     setAssignTarget(row);
     setSelectedStaff("");
+    setAssignFieldErrors({});
     setAssignError("");
     try {
       const staff = await getUsers({ role: "Staff", isActive: "true" });
@@ -84,9 +89,25 @@ export default function Complaints() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setFormError("");
+    const titleErr = validateRequired(form.title, "Title", 3, 100);
+    const descErr = validateRequired(form.description, "Description", 5, 1000);
+
+    if (titleErr || descErr) {
+      setFieldErrors({
+        title: titleErr,
+        description: descErr,
+      });
+      return;
+    }
+    setFieldErrors({});
     setSubmitting(true);
     try {
-      await createComplaint({ ...form, attachments: photoFile || undefined });
+      await createComplaint({
+        ...form,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        attachments: photoFile || undefined
+      });
       setCreateOpen(false);
       setForm(emptyForm);
       setPhotoFile(null);
@@ -100,10 +121,12 @@ export default function Complaints() {
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!selectedStaff) {
-      setAssignError("Please select a staff member");
+    const staffErr = validateRequired(selectedStaff, "Staff selection");
+    if (staffErr) {
+      setAssignFieldErrors({ staff: staffErr });
       return;
     }
+    setAssignFieldErrors({});
     setAssignError("");
     setSubmitting(true);
     try {
@@ -120,9 +143,20 @@ export default function Complaints() {
   const handleStatusUpdate = async (e) => {
     e.preventDefault();
     setStatusError("");
+    if (statusForm.status === "RESOLVED" || statusForm.status === "CLOSED") {
+      const notesErr = validateRequired(statusForm.resolutionNotes, "Resolution notes", 3, 500);
+      if (notesErr) {
+        setStatusFieldErrors({ resolutionNotes: notesErr });
+        return;
+      }
+    }
+    setStatusFieldErrors({});
     setSubmitting(true);
     try {
-      await updateComplaintStatus(statusTarget._id, statusForm);
+      await updateComplaintStatus(statusTarget._id, {
+        ...statusForm,
+        resolutionNotes: statusForm.resolutionNotes.trim(),
+      });
       setStatusTarget(null);
       fetchComplaints();
     } catch (err) {
@@ -289,8 +323,12 @@ export default function Complaints() {
           <TextField
             label="Title"
             required
+            error={fieldErrors.title}
             value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, title: e.target.value });
+              if (fieldErrors.title) setFieldErrors({ ...fieldErrors, title: "" });
+            }}
             placeholder="e.g. Water leakage in bathroom"
           />
           <div className="grid grid-cols-2 gap-4">
@@ -310,8 +348,12 @@ export default function Complaints() {
           <TextareaField
             label="Description"
             required
+            error={fieldErrors.description}
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value });
+              if (fieldErrors.description) setFieldErrors({ ...fieldErrors, description: "" });
+            }}
             placeholder="Describe the issue in detail..."
           />
           <ImageUpload label="Photo (optional)" onChange={setPhotoFile} />
@@ -343,8 +385,13 @@ export default function Complaints() {
           )}
           <SelectField
             label="Staff member"
+            required
+            error={assignFieldErrors.staff}
             value={selectedStaff}
-            onChange={(e) => setSelectedStaff(e.target.value)}
+            onChange={(e) => {
+              setSelectedStaff(e.target.value);
+              if (assignFieldErrors.staff) setAssignFieldErrors({ ...assignFieldErrors, staff: "" });
+            }}
             options={[
               { label: staffOptions.length ? "Select staff" : "No staff members found", value: "" },
               ...staffOptions.map((s) => ({ label: s.profession ? `${s.name} — ${s.profession}` : s.name, value: s._id })),
@@ -383,8 +430,12 @@ export default function Complaints() {
           />
           <TextareaField
             label="Resolution notes"
+            error={statusFieldErrors.resolutionNotes}
             value={statusForm.resolutionNotes}
-            onChange={(e) => setStatusForm({ ...statusForm, resolutionNotes: e.target.value })}
+            onChange={(e) => {
+              setStatusForm({ ...statusForm, resolutionNotes: e.target.value });
+              if (statusFieldErrors.resolutionNotes) setStatusFieldErrors({ ...statusFieldErrors, resolutionNotes: "" });
+            }}
             placeholder="What was done to resolve this?"
           />
         </form>

@@ -8,11 +8,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import FoldText from '@/marketing/ui/FoldText.jsx';
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function Footer() {
+  const { isAuthenticated } = useAuth();
   const footerRef = useRef(null);
   const ctaHeadingRef = useRef(null);
   const linksGridRef = useRef(null);
@@ -87,10 +89,10 @@ export default function Footer() {
           {/* Glowing CTA Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/login"
+              to={isAuthenticated ? "/dashboard" : "/login"}
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-black font-semibold text-sm hover:bg-[#f4f4f4] transition-all flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.25)] no-underline cursor-pointer group"
             >
-              <span>Access Resident Portal</span>
+              <span>{isAuthenticated ? "Go to Dashboard" : "Access Resident Portal"}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
 

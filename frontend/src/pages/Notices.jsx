@@ -11,6 +11,7 @@ import Badge from "@/components/ui/Badge";
 import Loader from "@/components/ui/Loader";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/date";
+import { validateRequired } from "@/utils/validators";
 import { IconPlus, IconMegaphone, IconCheck, IconTrash, IconPoll } from "@/components/ui/icons";
 
 const CATEGORIES = ["Announcement", "Event", "Rule", "MaintenanceNotice"];
@@ -29,6 +30,7 @@ export default function Notices() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -52,11 +54,33 @@ export default function Notices() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setFormError("");
+    const titleErr = validateRequired(form.title, "Title", 3, 120);
+    const contentErr = validateRequired(form.content, "Content", 5, 2000);
+    let pollErr = "";
+
+    if (form.isPoll) {
+      const validOptions = form.pollOptions.map((o) => o.trim()).filter(Boolean);
+      if (validOptions.length < 2) {
+        pollErr = "A poll requires at least 2 non-empty options.";
+      }
+    }
+
+    if (titleErr || contentErr || pollErr) {
+      setFieldErrors({
+        title: titleErr,
+        content: contentErr,
+        pollOptions: pollErr,
+      });
+      return;
+    }
+    setFieldErrors({});
     setSubmitting(true);
     try {
       await noticeService.createNotice({
         ...form,
-        pollOptions: form.isPoll ? form.pollOptions.filter((o) => o.trim()) : [],
+        title: form.title.trim(),
+        content: form.content.trim(),
+        pollOptions: form.isPoll ? form.pollOptions.map((o) => o.trim()).filter(Boolean) : [],
       });
       setCreateOpen(false);
       setForm(emptyForm);
@@ -252,8 +276,26 @@ export default function Notices() {
               {formError}
             </div>
           )}
-          <TextField label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          <TextareaField label="Content" required value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+          <TextField
+            label="Title"
+            required
+            error={fieldErrors.title}
+            value={form.title}
+            onChange={(e) => {
+              setForm({ ...form, title: e.target.value });
+              if (fieldErrors.title) setFieldErrors({ ...fieldErrors, title: "" });
+            }}
+          />
+          <TextareaField
+            label="Content"
+            required
+            error={fieldErrors.content}
+            value={form.content}
+            onChange={(e) => {
+              setForm({ ...form, content: e.target.value });
+              if (fieldErrors.content) setFieldErrors({ ...fieldErrors, content: "" });
+            }}
+          />
           <SelectField
             label="Category"
             value={form.category}
@@ -273,8 +315,19 @@ export default function Notices() {
 
           {form.isPoll && (
             <div className="space-y-2.5">
+              {fieldErrors.pollOptions && (
+                <p className="text-xs text-red-500 font-medium">{fieldErrors.pollOptions}</p>
+              )}
               {form.pollOptions.map((opt, i) => (
-                <TextField key={i} label={`Option ${i + 1}`} value={opt} onChange={(e) => updatePollOption(i, e.target.value)} />
+                <TextField
+                  key={i}
+                  label={`Option ${i + 1}`}
+                  value={opt}
+                  onChange={(e) => {
+                    updatePollOption(i, e.target.value);
+                    if (fieldErrors.pollOptions) setFieldErrors({ ...fieldErrors, pollOptions: "" });
+                  }}
+                />
               ))}
               <button type="button" onClick={addPollOption} className="text-sm font-medium text-ink-faint hover:text-ink">
                 + Add another option

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import sitemapBg from '@/assets/images/sitemap-bg.jpg'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import FoldText from '@/marketing/ui/FoldText.jsx'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -130,6 +131,7 @@ const rolesData = [
 ]
 
 export default function SitemapFlowchart() {
+  const { isAuthenticated } = useAuth()
   const sectionRef = useRef(null)
   const bgImageRef = useRef(null)
   const headerRef = useRef(null)
@@ -316,10 +318,10 @@ export default function SitemapFlowchart() {
             </div>
           </div>
           <Link
-            to="/login"
+            to={isAuthenticated ? "/dashboard" : "/login"}
             className="px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white font-semibold text-xs hover:bg-white hover:text-black transition-all duration-300 flex items-center justify-center gap-1.5 no-underline shrink-0 cursor-pointer"
           >
-            <span>Login Gateway</span>
+            <span>{isAuthenticated ? "Open Dashboard" : "Login Gateway"}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -394,10 +396,10 @@ export default function SitemapFlowchart() {
                 {/* Fixed Card Bottom Redirect CTA Button */}
                 <div className="pt-3 border-t border-white/10 relative z-10">
                   <Link
-                    to="/login"
+                    to={isAuthenticated ? "/dashboard" : "/login"}
                     className="w-full py-2.5 px-3.5 rounded-full bg-white text-black font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-white/90 transition-all duration-300 no-underline cursor-pointer group-hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                   >
-                    <span>Go to {col.ctaText}</span>
+                    <span>{isAuthenticated ? "Go to Dashboard" : `Go to ${col.ctaText}`}</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </div>

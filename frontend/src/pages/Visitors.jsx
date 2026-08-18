@@ -17,6 +17,13 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import ScanResultModal from "@/components/ui/ScanResultModal";
 import { formatDate } from "@/lib/date";
 import { downloadVisitorPassPdf } from "@/lib/generateVisitorPassPdf";
+import {
+  validateName,
+  validatePhone,
+  validateVehicleNumber,
+  validateRequired,
+  validateFutureDate,
+} from "@/utils/validators";
 import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX, IconLogOut } from "@/components/ui/icons";
 
 const VISITOR_TYPES = ["Guest", "Delivery", "Cab", "Vendor", "Service"];
@@ -50,6 +57,8 @@ export default function Visitors() {
 
   const [passOpen, setPassOpen] = useState(false);
   const [passForm, setPassForm] = useState(emptyPassForm);
+  const [passFieldErrors, setPassFieldErrors] = useState({});
+  const [passPhoto, setPassPhoto] = useState(null);
   const [passError, setPassError] = useState("");
   const [generatedPass, setGeneratedPass] = useState(null);
 
@@ -64,6 +73,7 @@ export default function Visitors() {
 
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState(emptyWalkInForm);
+  const [walkInFieldErrors, setWalkInFieldErrors] = useState({});
   const [walkInPhoto, setWalkInPhoto] = useState(null);
   const [walkInError, setWalkInError] = useState("");
 
@@ -106,9 +116,32 @@ export default function Visitors() {
   const handleGeneratePass = async (e) => {
     e.preventDefault();
     setPassError("");
+    const nameErr = validateName(passForm.visitorName, "Visitor name");
+    const phoneErr = validatePhone(passForm.phone, "Phone number");
+    const vehicleErr = validateVehicleNumber(passForm.vehicleNumber);
+    const dateErr = validateFutureDate(passForm.validUntil, "Pass validity");
+    const purposeErr = validateRequired(passForm.purpose, "Purpose of visit", 2);
+
+    if (nameErr || phoneErr || vehicleErr || dateErr || purposeErr) {
+      setPassFieldErrors({
+        visitorName: nameErr,
+        phone: phoneErr,
+        vehicleNumber: vehicleErr,
+        validUntil: dateErr,
+        purpose: purposeErr,
+      });
+      return;
+    }
+    setPassFieldErrors({});
     setSubmitting(true);
     try {
-      const visitor = await visitorService.generateVisitorPass(passForm);
+      const visitor = await visitorService.generateVisitorPass({
+        ...passForm,
+        visitorName: passForm.visitorName.trim(),
+        phone: passForm.phone.trim(),
+        vehicleNumber: (passForm.vehicleNumber || "").trim().toUpperCase(),
+        photo: passPhoto || undefined,
+      });
       setGeneratedPass(visitor);
       fetchAll();
     } catch (err) {
@@ -251,9 +284,32 @@ export default function Visitors() {
   const handleWalkIn = async (e) => {
     e.preventDefault();
     setWalkInError("");
+    const nameErr = validateName(walkInForm.visitorName, "Visitor name");
+    const phoneErr = validatePhone(walkInForm.phone, "Phone number");
+    const flatErr = validateRequired(walkInForm.targetFlatId, "Target flat");
+    const vehicleErr = validateVehicleNumber(walkInForm.vehicleNumber);
+    const purposeErr = validateRequired(walkInForm.purpose, "Purpose of visit", 2);
+
+    if (nameErr || phoneErr || flatErr || vehicleErr || purposeErr) {
+      setWalkInFieldErrors({
+        visitorName: nameErr,
+        phone: phoneErr,
+        targetFlatId: flatErr,
+        vehicleNumber: vehicleErr,
+        purpose: purposeErr,
+      });
+      return;
+    }
+    setWalkInFieldErrors({});
     setSubmitting(true);
     try {
-      await visitorService.logWalkIn({ ...walkInForm, photo: walkInPhoto || undefined });
+      await visitorService.logWalkIn({
+        ...walkInForm,
+        visitorName: walkInForm.visitorName.trim(),
+        phone: walkInForm.phone.trim(),
+        vehicleNumber: (walkInForm.vehicleNumber || "").trim().toUpperCase(),
+        photo: walkInPhoto || undefined,
+      });
       setWalkInOpen(false);
       setWalkInForm(emptyWalkInForm);
       setWalkInPhoto(null);
@@ -367,6 +423,7 @@ export default function Visitors() {
               size="md"
               onClick={() => {
                 setPassForm({ ...emptyPassForm, validUntil: defaultValidUntil() });
+                setPassPhoto(null);
                 setGeneratedPass(null);
                 setPassError("");
                 setPassOpen(true);
@@ -513,13 +570,35 @@ export default function Visitors() {
                 {passError}
               </div>
             )}
-            <TextField label="Visitor name" required value={passForm.visitorName} onChange={(e) => setPassForm({ ...passForm, visitorName: e.target.value })} />
+            <TextField
+              label="Visitor name"
+              required
+              error={passFieldErrors.visitorName}
+              value={passForm.visitorName}
+              onChange={(e) => {
+                setPassForm({ ...passForm, visitorName: e.target.value });
+                if (passFieldErrors.visitorName) setPassFieldErrors({ ...passFieldErrors, visitorName: "" });
+              }}
+            />
             <div className="grid grid-cols-2 gap-4">
-              <TextField label="Phone" required value={passForm.phone} onChange={(e) => setPassForm({ ...passForm, phone: e.target.value })} />
+              <TextField
+                label="Phone"
+                required
+                error={passFieldErrors.phone}
+                value={passForm.phone}
+                onChange={(e) => {
+                  setPassForm({ ...passForm, phone: e.target.value });
+                  if (passFieldErrors.phone) setPassFieldErrors({ ...passFieldErrors, phone: "" });
+                }}
+              />
               <TextField
                 label="Vehicle number"
+                error={passFieldErrors.vehicleNumber}
                 value={passForm.vehicleNumber}
-                onChange={(e) => setPassForm({ ...passForm, vehicleNumber: e.target.value })}
+                onChange={(e) => {
+                  setPassForm({ ...passForm, vehicleNumber: e.target.value });
+                  if (passFieldErrors.vehicleNumber) setPassFieldErrors({ ...passFieldErrors, vehicleNumber: "" });
+                }}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -533,16 +612,26 @@ export default function Visitors() {
                 label="Valid until"
                 type="datetime-local"
                 required
+                error={passFieldErrors.validUntil}
                 value={passForm.validUntil}
-                onChange={(e) => setPassForm({ ...passForm, validUntil: e.target.value })}
+                onChange={(e) => {
+                  setPassForm({ ...passForm, validUntil: e.target.value });
+                  if (passFieldErrors.validUntil) setPassFieldErrors({ ...passFieldErrors, validUntil: "" });
+                }}
               />
             </div>
             <TextField
               label="Purpose"
+              required
+              error={passFieldErrors.purpose}
               value={passForm.purpose}
-              onChange={(e) => setPassForm({ ...passForm, purpose: e.target.value })}
+              onChange={(e) => {
+                setPassForm({ ...passForm, purpose: e.target.value });
+                if (passFieldErrors.purpose) setPassFieldErrors({ ...passFieldErrors, purpose: "" });
+              }}
               placeholder="e.g. Family visit"
             />
+            <ImageUpload label="Visitor photo (optional)" onChange={setPassPhoto} allowCapture />
           </form>
         )}
       </Modal>
@@ -559,10 +648,6 @@ export default function Visitors() {
         size="sm"
       >
         <div className="space-y-4">
-          {/* Must stay position:relative — html5-qrcode injects its own absolutely-positioned
-              scan-region shading directly inside this div. Without a positioned container here,
-              that overlay anchors to an ancestor further up instead and can paint as a solid
-              block over the live video, even though the camera is actually running. */}
           <div
             id="qr-reader-region"
             className="relative mx-auto w-full overflow-hidden rounded-lg bg-black/80"
@@ -633,13 +718,35 @@ export default function Visitors() {
               {walkInError}
             </div>
           )}
-          <TextField label="Visitor name" required value={walkInForm.visitorName} onChange={(e) => setWalkInForm({ ...walkInForm, visitorName: e.target.value })} />
+          <TextField
+            label="Visitor name"
+            required
+            error={walkInFieldErrors.visitorName}
+            value={walkInForm.visitorName}
+            onChange={(e) => {
+              setWalkInForm({ ...walkInForm, visitorName: e.target.value });
+              if (walkInFieldErrors.visitorName) setWalkInFieldErrors({ ...walkInFieldErrors, visitorName: "" });
+            }}
+          />
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="Phone" required value={walkInForm.phone} onChange={(e) => setWalkInForm({ ...walkInForm, phone: e.target.value })} />
+            <TextField
+              label="Phone"
+              required
+              error={walkInFieldErrors.phone}
+              value={walkInForm.phone}
+              onChange={(e) => {
+                setWalkInForm({ ...walkInForm, phone: e.target.value });
+                if (walkInFieldErrors.phone) setWalkInFieldErrors({ ...walkInFieldErrors, phone: "" });
+              }}
+            />
             <TextField
               label="Vehicle number"
+              error={walkInFieldErrors.vehicleNumber}
               value={walkInForm.vehicleNumber}
-              onChange={(e) => setWalkInForm({ ...walkInForm, vehicleNumber: e.target.value })}
+              onChange={(e) => {
+                setWalkInForm({ ...walkInForm, vehicleNumber: e.target.value });
+                if (walkInFieldErrors.vehicleNumber) setWalkInFieldErrors({ ...walkInFieldErrors, vehicleNumber: "" });
+              }}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -651,18 +758,28 @@ export default function Visitors() {
             />
             <SelectField
               label="Target flat"
+              required
+              error={walkInFieldErrors.targetFlatId}
               value={walkInForm.targetFlatId}
-              onChange={(e) => setWalkInForm({ ...walkInForm, targetFlatId: e.target.value })}
+              onChange={(e) => {
+                setWalkInForm({ ...walkInForm, targetFlatId: e.target.value });
+                if (walkInFieldErrors.targetFlatId) setWalkInFieldErrors({ ...walkInFieldErrors, targetFlatId: "" });
+              }}
               options={[{ label: "Select flat", value: "" }, ...flats.map((f) => ({ label: `${f.blockName}-${f.flatNumber}`, value: f._id }))]}
             />
           </div>
           <TextField
             label="Purpose"
+            required
+            error={walkInFieldErrors.purpose}
             value={walkInForm.purpose}
-            onChange={(e) => setWalkInForm({ ...walkInForm, purpose: e.target.value })}
+            onChange={(e) => {
+              setWalkInForm({ ...walkInForm, purpose: e.target.value });
+              if (walkInFieldErrors.purpose) setWalkInFieldErrors({ ...walkInFieldErrors, purpose: "" });
+            }}
             placeholder="e.g. Package delivery"
           />
-          <ImageUpload label="Visitor photo (optional)" onChange={setWalkInPhoto} />
+          <ImageUpload label="Visitor photo (optional)" onChange={setWalkInPhoto} allowCapture />
         </form>
       </Modal>
 

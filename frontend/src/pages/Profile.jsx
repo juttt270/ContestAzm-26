@@ -8,6 +8,13 @@ import Badge from "@/components/ui/Badge";
 import ImageUpload from "@/components/ui/ImageUpload";
 import Loader from "@/components/ui/Loader";
 import { ROLE_LABELS } from "@/constants";
+import {
+  validateName,
+  validatePhone,
+  validatePassword,
+  validatePasswordMatch,
+  validateVehicleNumber,
+} from "@/utils/validators";
 import { IconPlus, IconTrash, IconLock } from "@/components/ui/icons";
 
 const VEHICLE_TYPES = ["2-Wheeler", "4-Wheeler", "Other"];
@@ -16,6 +23,7 @@ const ROLE_VARIANT = { Admin: "info", Resident: "neutral", Guard: "warning", Sta
 export default function Profile() {
   const { user, setUser } = useAuth();
   const [form, setForm] = useState({ name: "", phone: "" });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [avatarFile, setAvatarFile] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -26,6 +34,7 @@ export default function Profile() {
   const [success, setSuccess] = useState("");
 
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [pwFieldErrors, setPwFieldErrors] = useState({});
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
@@ -59,17 +68,55 @@ export default function Profile() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    const nameErr = validateName(form.name, "Full name");
+    const phoneErr = validatePhone(form.phone, "Phone number");
+
+    if (nameErr || phoneErr) {
+      setFieldErrors({
+        name: nameErr,
+        phone: phoneErr,
+      });
+      return;
+    }
+
+    // Validate any entered vehicle plate
+    for (const v of vehicles) {
+      if (v.vehicleNumber.trim()) {
+        const vErr = validateVehicleNumber(v.vehicleNumber);
+        if (vErr) {
+          setError(`Invalid vehicle plate '${v.vehicleNumber}': ${vErr}`);
+          return;
+        }
+      }
+    }
+
+    // Validate emergency contacts
+    for (const c of contacts) {
+      if (c.phone.trim()) {
+        const cErr = validatePhone(c.phone, "Emergency contact phone");
+        if (cErr) {
+          setError(`Invalid phone for '${c.name || "Contact"}': ${cErr}`);
+          return;
+        }
+      }
+    }
+
+    setFieldErrors({});
     setSaving(true);
     try {
       const updated = await authService.updateProfile({
-        name: form.name,
-        phone: form.phone,
+        name: form.name.trim(),
+        phone: form.phone.trim(),
         avatar: avatarFile || undefined,
-        vehicles: vehicles.filter((v) => v.vehicleNumber.trim()),
-        emergencyContacts: contacts.filter((c) => c.name.trim() && c.phone.trim()),
+        vehicles: vehicles
+          .filter((v) => v.vehicleNumber.trim())
+          .map((v) => ({ ...v, vehicleNumber: v.vehicleNumber.trim().toUpperCase() })),
+        emergencyContacts: contacts
+          .filter((c) => c.name.trim() && c.phone.trim())
+          .map((c) => ({ ...c, name: c.name.trim(), phone: c.phone.trim() })),
         familyMembers: familyMembers
           .filter((m) => m.name.trim() && m.relation.trim())
-          .map((m) => ({ name: m.name, relation: m.relation, age: m.age === "" ? null : Number(m.age) })),
+          .map((m) => ({ name: m.name.trim(), relation: m.relation.trim(), age: m.age === "" ? null : Number(m.age) })),
       });
       setUser(updated);
       setAvatarFile(null);
@@ -85,14 +132,19 @@ export default function Profile() {
     e.preventDefault();
     setPwError("");
     setPwSuccess("");
-    if (pwForm.newPassword.length < 6) {
-      setPwError("New password must be at least 6 characters.");
+    const currentErr = validatePassword(pwForm.currentPassword, 1);
+    const newErr = validatePassword(pwForm.newPassword, 6);
+    const matchErr = validatePasswordMatch(pwForm.newPassword, pwForm.confirmPassword);
+
+    if (currentErr || newErr || matchErr) {
+      setPwFieldErrors({
+        currentPassword: currentErr,
+        newPassword: newErr,
+        confirmPassword: matchErr,
+      });
       return;
     }
-    if (pwForm.newPassword !== pwForm.confirmPassword) {
-      setPwError("New passwords do not match.");
-      return;
-    }
+    setPwFieldErrors({});
     setPwSaving(true);
     try {
       await authService.changePassword(pwForm.currentPassword, pwForm.newPassword);
@@ -165,8 +217,26 @@ export default function Profile() {
         <div className="rounded-xl border border-line bg-surface p-5">
           <h2 className="text-base font-semibold text-ink">Basic Information</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <TextField label="Full name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <TextField label="Phone" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <TextField
+              label="Full name"
+              required
+              error={fieldErrors.name}
+              value={form.name}
+              onChange={(e) => {
+                setForm({ ...form, name: e.target.value });
+                if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: "" });
+              }}
+            />
+            <TextField
+              label="Phone"
+              required
+              error={fieldErrors.phone}
+              value={form.phone}
+              onChange={(e) => {
+                setForm({ ...form, phone: e.target.value });
+                if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: "" });
+              }}
+            />
           </div>
         </div>
 
@@ -294,23 +364,35 @@ export default function Profile() {
             label="Current password"
             type="password"
             required
+            error={pwFieldErrors.currentPassword}
             value={pwForm.currentPassword}
-            onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+            onChange={(e) => {
+              setPwForm({ ...pwForm, currentPassword: e.target.value });
+              if (pwFieldErrors.currentPassword) setPwFieldErrors({ ...pwFieldErrors, currentPassword: "" });
+            }}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
               label="New password"
               type="password"
               required
+              error={pwFieldErrors.newPassword}
               value={pwForm.newPassword}
-              onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
+              onChange={(e) => {
+                setPwForm({ ...pwForm, newPassword: e.target.value });
+                if (pwFieldErrors.newPassword) setPwFieldErrors({ ...pwFieldErrors, newPassword: "" });
+              }}
             />
             <TextField
               label="Confirm new password"
               type="password"
               required
+              error={pwFieldErrors.confirmPassword}
               value={pwForm.confirmPassword}
-              onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+              onChange={(e) => {
+                setPwForm({ ...pwForm, confirmPassword: e.target.value });
+                if (pwFieldErrors.confirmPassword) setPwFieldErrors({ ...pwFieldErrors, confirmPassword: "" });
+              }}
             />
           </div>
           <div className="flex justify-end">

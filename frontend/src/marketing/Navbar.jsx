@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
   { id: 'hero', name: 'Home', href: '#hero' },
@@ -15,6 +16,7 @@ const navItems = [
 ];
 
 export default function Navbar() {
+  const { isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [activeSection, setActiveSection] = useState('hero');
@@ -89,13 +91,13 @@ export default function Navbar() {
         })}
       </nav>
 
-      {/* Right Prominent Login Button (Desktop) */}
+      {/* Right Prominent Login / Dashboard Button (Desktop) */}
       <div className="hidden md:flex items-center">
         <Link
-          to="/login"
+          to={isAuthenticated ? "/dashboard" : "/login"}
           className="bg-white text-black text-xs sm:text-sm font-semibold px-5 py-2 sm:px-6 sm:py-2.5 rounded-full hover:bg-white/90 transition-all cursor-pointer no-underline flex items-center gap-1.5 shadow-md group"
         >
-          <span>Log in</span>
+          <span>{isAuthenticated ? "Go to Dashboard" : "Log in"}</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
         </Link>
       </div>
@@ -139,11 +141,11 @@ export default function Navbar() {
 
             <div className="pt-3 border-t border-white/10 mt-1">
               <Link
-                to="/login"
+                to={isAuthenticated ? "/dashboard" : "/login"}
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full py-3 rounded-full bg-white text-black font-semibold text-center text-sm no-underline flex items-center justify-center gap-1.5"
               >
-                <span>Log in</span>
+                <span>{isAuthenticated ? "Go to Dashboard" : "Log in"}</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
