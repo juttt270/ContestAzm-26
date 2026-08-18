@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "@/context/AuthContext";
 import * as visitorService from "@/services/visitorService";
 import * as flatService from "@/services/flatService";
@@ -13,14 +14,10 @@ import SelectField from "@/components/ui/SelectField";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Loader from "@/components/ui/Loader";
 import ImageUpload from "@/components/ui/ImageUpload";
-import QRScanner from "@/components/ui/QRScanner";
-import ScanResultModal from "@/components/ui/ScanResultModal";
 import { formatDate } from "@/lib/date";
 import { playScanFeedback } from "@/lib/beep";
 import { downloadVisitorPassPdf } from "@/lib/generateVisitorPassPdf";
 import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX, IconLogOut } from "@/components/ui/icons";
-import { validateName, validatePhone, validateVehicleNumber, sanitizeInput } from "@/utils/validation";
-
 
 const VISITOR_TYPES = ["Guest", "Delivery", "Cab", "Vendor", "Service"];
 const STATUS_LABEL = {
@@ -60,7 +57,8 @@ export default function Visitors() {
   const [scanIntent, setScanIntent] = useState("CHECK_IN");
   const [manualToken, setManualToken] = useState("");
   const [scanResult, setScanResult] = useState(null);
-  const [scanModalOpen, setScanModalOpen] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const scannerRef = useRef(null);
 
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState(emptyWalkInForm);
@@ -100,25 +98,9 @@ export default function Visitors() {
   const handleGeneratePass = async (e) => {
     e.preventDefault();
     setPassError("");
-
-    const nameErr = validateName(passForm.visitorName, "Visitor Name");
-    if (nameErr) return setPassError(nameErr);
-
-    const phoneErr = validatePhone(passForm.phone);
-    if (phoneErr) return setPassError(phoneErr);
-
-    const vehErr = validateVehicleNumber(passForm.vehicleNumber);
-    if (vehErr) return setPassError(vehErr);
-
     setSubmitting(true);
     try {
-      const visitor = await visitorService.generateVisitorPass({
-        ...passForm,
-        visitorName: sanitizeInput(passForm.visitorName),
-        phone: sanitizeInput(passForm.phone),
-        vehicleNumber: sanitizeInput(passForm.vehicleNumber),
-        purpose: sanitizeInput(passForm.purpose),
-      });
+      const visitor = await visitorService.generateVisitorPass(passForm);
       setGeneratedPass(visitor);
       fetchAll();
     } catch (err) {
@@ -129,74 +111,98 @@ export default function Visitors() {
   };
 
   const runVerify = async (rawToken) => {
-    if (!rawToken || !rawToken.trim()) return;
     setScanResult(null);
-    let qrToken = rawToken.trim();
+    let qrToken = rawToken;
     try {
-      const parsed = JSON.parse(qrToken);
+      const parsed = JSON.parse(rawToken);
       if (parsed?.qrToken) qrToken = parsed.qrToken;
     } catch {
-      // raw string
+      // raw text — treat as-is below
     }
-
     try {
       const base = qrToken.startsWith("VQR-") ? { qrToken } : { passCode: qrToken };
       const payload = scanIntent === "CHECK_OUT" ? { ...base, intent: "CHECK_OUT" } : base;
       const result = await visitorService.verifyQrPass(payload);
       const isCheckout = result.action === "CHECK_OUT";
-
       setScanResult({
         ok: true,
-        action: result.action,
-        visitor: result.visitor,
         message: isCheckout
-          ? `Exit logged: ${result.visitor?.visitorName || "Visitor"} → ${flatLabel(result.visitor?.targetFlat)}`
-          : `Access granted: ${result.visitor?.visitorName || "Visitor"} → ${flatLabel(result.visitor?.targetFlat)}`,
+          ? `Exit logged: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`
+          : `Access granted: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`,
       });
-      setScanModalOpen(true);
+      playScanFeedback(true);
       fetchAll();
     } catch (err) {
-      setScanResult({
-        ok: false,
-        message: err.message || "Verification failed. Pass is invalid or expired.",
-      });
-      setScanModalOpen(true);
+      setScanResult({ ok: false, message: err.message || "Verification failed" });
+      playScanFeedback(false);
     }
+  };
+
+  const startCamera = async () => {
+    try {
+      const scanner = new Html5Qrcode("qr-reader-region");
+      scannerRef.current = scanner;
+
+      const onDecoded = (decodedText) => {
+        runVerify(decodedText);
+        scanner
+          .stop()
+          .then(() => setCameraActive(false))
+          .catch(() => {});
+      };
+      const config = { fps: 10, qrbox: 220 };
+
+      // Prefer a rear/back camera (phones, gate tablets); laptops only expose a
+      // front webcam, so forcing facingMode: "environment" finds no match there.
+      let cameraTarget = { facingMode: "environment" };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras?.length) {
+          const rear = cameras.find((c) => /back|rear|environment/i.test(c.label));
+          cameraTarget = { deviceId: { exact: (rear || cameras[0]).id } };
+        }
+      } catch {
+        // Camera enumeration needs permission first on some browsers — fall through
+        // to the facingMode constraint below and let getUserMedia prompt directly.
+      }
+
+      try {
+        await scanner.start(cameraTarget, config, onDecoded, () => {});
+      } catch {
+        // Laptop with only a front webcam, or the chosen device was rejected — retry front-facing.
+        await scanner.start({ facingMode: "user" }, config, onDecoded, () => {});
+      }
+
+      setCameraActive(true);
+    } catch {
+      setScanResult({ ok: false, message: "Camera unavailable — use manual code entry below instead." });
+    }
+  };
+
+  const stopCamera = async () => {
+    try {
+      if (scannerRef.current && cameraActive) await scannerRef.current.stop();
+    } catch {
+      // ignore stop errors when camera was never fully started
+    }
+    setCameraActive(false);
   };
 
   useEffect(() => {
     if (!scanOpen) {
+      stopCamera();
+      setScanResult(null);
       setManualToken("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanOpen]);
 
   const handleWalkIn = async (e) => {
     e.preventDefault();
     setWalkInError("");
-
-    const nameErr = validateName(walkInForm.visitorName, "Visitor Name");
-    if (nameErr) return setWalkInError(nameErr);
-
-    const phoneErr = validatePhone(walkInForm.phone);
-    if (phoneErr) return setWalkInError(phoneErr);
-
-    const vehErr = validateVehicleNumber(walkInForm.vehicleNumber);
-    if (vehErr) return setWalkInError(vehErr);
-
-    if (!walkInForm.targetFlatId) {
-      return setWalkInError("Please select a target flat for the visitor.");
-    }
-
     setSubmitting(true);
     try {
-      await visitorService.logWalkIn({
-        ...walkInForm,
-        visitorName: sanitizeInput(walkInForm.visitorName),
-        phone: sanitizeInput(walkInForm.phone),
-        vehicleNumber: sanitizeInput(walkInForm.vehicleNumber),
-        purpose: sanitizeInput(walkInForm.purpose),
-        photo: walkInPhoto || undefined,
-      });
+      await visitorService.logWalkIn({ ...walkInForm, photo: walkInPhoto || undefined });
       setWalkInOpen(false);
       setWalkInForm(emptyWalkInForm);
       setWalkInPhoto(null);
@@ -207,7 +213,6 @@ export default function Visitors() {
       setSubmitting(false);
     }
   };
-
 
   const handleCheckout = async (row) => {
     await visitorService.checkoutVisitor(row._id);
@@ -493,7 +498,16 @@ export default function Visitors() {
         size="sm"
       >
         <div className="space-y-4">
-          <QRScanner active={scanOpen} onScan={(token) => runVerify(token)} />
+          <div id="qr-reader-region" className="mx-auto w-full overflow-hidden rounded-lg bg-black/80" style={{ minHeight: cameraActive ? 220 : 0 }} />
+          {!cameraActive ? (
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={startCamera}>
+              <IconQrCode className="h-4 w-4" /> Start camera scan
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={stopCamera}>
+              Stop camera
+            </Button>
+          )}
 
           <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-ink-ghost">
             <span className="h-px flex-1 bg-line-soft" /> or enter manually <span className="h-px flex-1 bg-line-soft" />
@@ -505,27 +519,23 @@ export default function Visitors() {
             onChange={(e) => setManualToken(e.target.value)}
             placeholder="e.g. 482913 or VQR-..."
           />
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            className="w-full"
-            disabled={!manualToken.trim()}
-            onClick={() => runVerify(manualToken.trim())}
-          >
+          <Button type="button" variant="primary" size="sm" className="w-full" disabled={!manualToken.trim()} onClick={() => runVerify(manualToken.trim())}>
             Verify
           </Button>
+
+          {scanResult && (
+            <div
+              className={`rounded-lg border px-3 py-2.5 text-sm ${
+                scanResult.ok
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
+              }`}
+            >
+              {scanResult.message}
+            </div>
+          )}
         </div>
       </Modal>
-
-      {/* Premium Glassmorphic Micro-Animated Feedback Modal */}
-      <ScanResultModal
-        open={scanModalOpen}
-        result={scanResult}
-        onClose={() => setScanModalOpen(false)}
-        autoDismissTime={5000}
-      />
-
 
       <Modal
         open={walkInOpen}
