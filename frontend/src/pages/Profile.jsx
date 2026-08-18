@@ -9,6 +9,7 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import Loader from "@/components/ui/Loader";
 import { ROLE_LABELS } from "@/constants";
 import { IconPlus, IconTrash, IconLock } from "@/components/ui/icons";
+import { validateName, validatePhone, validatePassword, sanitizeInput } from "@/utils/validation";
 
 const VEHICLE_TYPES = ["2-Wheeler", "4-Wheeler", "Other"];
 const ROLE_VARIANT = { Admin: "info", Resident: "neutral", Guard: "warning", Staff: "success" };
@@ -59,11 +60,18 @@ export default function Profile() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const nameErr = validateName(form.name, "Full name");
+    if (nameErr) return setError(nameErr);
+
+    const phoneErr = validatePhone(form.phone);
+    if (phoneErr) return setError(phoneErr);
+
     setSaving(true);
     try {
       const updated = await authService.updateProfile({
-        name: form.name,
-        phone: form.phone,
+        name: sanitizeInput(form.name),
+        phone: sanitizeInput(form.phone),
         avatar: avatarFile || undefined,
         vehicles: vehicles.filter((v) => v.vehicleNumber.trim()),
         emergencyContacts: contacts.filter((c) => c.name.trim() && c.phone.trim()),
@@ -85,8 +93,10 @@ export default function Profile() {
     e.preventDefault();
     setPwError("");
     setPwSuccess("");
-    if (pwForm.newPassword.length < 6) {
-      setPwError("New password must be at least 6 characters.");
+
+    const passErr = validatePassword(pwForm.newPassword);
+    if (passErr) {
+      setPwError(passErr);
       return;
     }
     if (pwForm.newPassword !== pwForm.confirmPassword) {
@@ -104,6 +114,7 @@ export default function Profile() {
       setPwSaving(false);
     }
   };
+
 
   if (loading) {
     return (

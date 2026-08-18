@@ -3,6 +3,7 @@ import { ArrowLeft, KeyRound, Mail, Check, Eye, EyeOff, User, Lock, Phone } from
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { ROUTES } from '@/constants';
+import { validateEmail, validatePhone, validatePassword, validateName, sanitizeInput } from '@/utils/validation';
 
 export default function Login() {
   const { login, signup, isAuthenticated, loading: authLoading } = useAuth();
@@ -21,6 +22,7 @@ export default function Login() {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   if (!authLoading && isAuthenticated) {
     return <Navigate to={ROUTES.DASHBOARD} replace />;
@@ -29,9 +31,21 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setFieldErrors({ email: emailErr });
+      return;
+    }
+    if (!password) {
+      setFieldErrors({ password: 'Password is required.' });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login(sanitizeInput(email), password);
       setLoginSuccess(true);
       setTimeout(() => navigate(ROUTES.DASHBOARD), 900);
     } catch (err) {
@@ -43,17 +57,38 @@ export default function Login() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+
+    const errors = {};
+    const nameErr = validateName(name, 'Your name');
+    if (nameErr) errors.name = nameErr;
+
+    const emailErr = validateEmail(email);
+    if (emailErr) errors.email = emailErr;
+
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) errors.phone = phoneErr;
+
+    const passwordErr = validatePassword(password);
+    if (passwordErr) errors.password = passwordErr;
+
     if (password !== confirmPassword) {
-      setError('Passwords do not match!');
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
+
     setIsLoading(true);
     try {
-      await signup({ name, email, phone, password });
+      await signup({
+        name: sanitizeInput(name),
+        email: sanitizeInput(email),
+        phone: sanitizeInput(phone),
+        password,
+      });
       setRegisterSuccess(true);
       setTimeout(() => navigate(ROUTES.DASHBOARD), 1200);
     } catch (err) {
@@ -61,6 +96,7 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden font-sans selection:bg-white selection:text-black">
@@ -137,11 +173,17 @@ export default function Login() {
                         type="email"
                         required
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                        }}
                         placeholder="you@example.com"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.email ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                     </div>
+                    {fieldErrors.email && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.email}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -152,9 +194,14 @@ export default function Login() {
                         type={showPassword ? 'text' : 'password'}
                         required
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' });
+                        }}
                         placeholder="Enter your password"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3.5 pl-11 pr-11 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3.5 pl-11 pr-11 text-sm text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.password ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                       <button
                         type="button"
@@ -164,6 +211,7 @@ export default function Login() {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.password && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.password}</p>}
                   </div>
 
                   <button
@@ -181,6 +229,7 @@ export default function Login() {
                     onClick={() => {
                       setIsRegister(true);
                       setError('');
+                      setFieldErrors({});
                     }}
                     className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer border-0 bg-transparent focus:outline-none transition-colors ml-1"
                   >
@@ -214,11 +263,17 @@ export default function Login() {
                         type="text"
                         required
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: '' });
+                        }}
                         placeholder="Enter your full name"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.name ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                     </div>
+                    {fieldErrors.name && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.name}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -229,11 +284,17 @@ export default function Login() {
                         type="email"
                         required
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                        }}
                         placeholder="you@example.com"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.email ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                     </div>
+                    {fieldErrors.email && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.email}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -244,11 +305,17 @@ export default function Login() {
                         type="tel"
                         required
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+                        }}
                         placeholder="+92 300 1234567"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.phone ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                     </div>
+                    {fieldErrors.phone && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.phone}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -259,9 +326,14 @@ export default function Login() {
                         type={showPassword ? 'text' : 'password'}
                         required
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Create a strong password (min. 6 chars)"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3 pl-11 pr-11 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' });
+                        }}
+                        placeholder="Create strong password (min 8 chars, 1 uppercase, 1 special)"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3 pl-11 pr-11 text-xs text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.password ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                       <button
                         type="button"
@@ -271,6 +343,7 @@ export default function Login() {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.password && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.password}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -281,9 +354,14 @@ export default function Login() {
                         type={showConfirmPassword ? 'text' : 'password'}
                         required
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          if (fieldErrors.confirmPassword) setFieldErrors({ ...fieldErrors, confirmPassword: '' });
+                        }}
                         placeholder="Confirm your password"
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl py-3 pl-11 pr-11 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.04] transition-all"
+                        className={`w-full bg-white/[0.02] border rounded-xl py-3 pl-11 pr-11 text-xs text-white placeholder-white/20 focus:outline-none transition-all ${
+                          fieldErrors.confirmPassword ? 'border-red-500/70 focus:border-red-500' : 'border-white/10 focus:border-white/30 focus:bg-white/[0.04]'
+                        }`}
                       />
                       <button
                         type="button"
@@ -293,6 +371,7 @@ export default function Login() {
                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.confirmPassword && <p className="text-[11px] text-red-400 mt-1 font-medium">{fieldErrors.confirmPassword}</p>}
                   </div>
 
                   <button

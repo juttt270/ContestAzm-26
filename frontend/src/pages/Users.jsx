@@ -12,6 +12,7 @@ import Loader from "@/components/ui/Loader";
 import { formatDate } from "@/lib/date";
 import { ROLE_LABELS } from "@/constants";
 import { IconPlus, IconPencil, IconTrash, IconUsers, IconCar, IconLock, IconWrench, IconShield, IconUser } from "@/components/ui/icons";
+import { validateEmail, validatePhone, validatePassword, validateName, sanitizeInput } from "@/utils/validation";
 
 const ROLES = ["Resident", "Guard", "Staff", "Admin"];
 const ROLE_ICON = { Resident: IconUsers, Guard: IconShield, Staff: IconWrench, Admin: IconUser };
@@ -33,7 +34,7 @@ export default function Users() {
   const [createError, setCreateError] = useState("");
 
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ role: "Resident", isActive: true, profession: "" });
+  const [editForm, setEditForm] = useState({ role: "Resident", status: "ACTIVE" });
   const [editError, setEditError] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -62,9 +63,27 @@ export default function Users() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreateError("");
+
+    const nameErr = validateName(createForm.name, "User Name");
+    if (nameErr) return setCreateError(nameErr);
+
+    const emailErr = validateEmail(createForm.email);
+    if (emailErr) return setCreateError(emailErr);
+
+    const phoneErr = validatePhone(createForm.phone);
+    if (phoneErr) return setCreateError(phoneErr);
+
+    const passErr = validatePassword(createForm.password);
+    if (passErr) return setCreateError(passErr);
+
     setSubmitting(true);
     try {
-      await authService.register(createForm);
+      await authService.register({
+        ...createForm,
+        name: sanitizeInput(createForm.name),
+        email: sanitizeInput(createForm.email),
+        phone: sanitizeInput(createForm.phone),
+      });
       setCreateOpen(false);
       setCreateForm(emptyCreateForm);
       fetchUsers();
@@ -98,8 +117,9 @@ export default function Users() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setResetError("");
-    if (resetForm.newPassword.length < 6) {
-      setResetError("Password must be at least 6 characters.");
+    const passErr = validatePassword(resetForm.newPassword);
+    if (passErr) {
+      setResetError(passErr);
       return;
     }
     if (resetForm.newPassword !== resetForm.confirmPassword) {

@@ -10,6 +10,7 @@ import SelectField from "@/components/ui/SelectField";
 import StatCard from "@/components/ui/StatCard";
 import Loader from "@/components/ui/Loader";
 import { IconPlus, IconUserPlus, IconBuilding } from "@/components/ui/icons";
+import { sanitizeInput } from "@/utils/validation";
 
 const OCCUPANCY_VARIANT = { Owner: "success", Tenant: "info", Vacant: "neutral" };
 const emptyCreateForm = { blockName: "", flatNumber: "", floor: "", maintenanceRate: "3000" };
@@ -62,10 +63,23 @@ export default function Flats() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreateError("");
+
+    const block = sanitizeInput(createForm.blockName);
+    const flatNo = sanitizeInput(createForm.flatNumber);
+
+    if (!block || block.length > 10) {
+      return setCreateError("Please enter a valid block name (e.g. Block A).");
+    }
+    if (!flatNo || flatNo.length > 10) {
+      return setCreateError("Please enter a valid flat number (e.g. 101).");
+    }
+
     setSubmitting(true);
     try {
       await flatService.createFlat({
         ...createForm,
+        blockName: block,
+        flatNumber: flatNo,
         floor: Number(createForm.floor),
         maintenanceRate: Number(createForm.maintenanceRate),
       });
@@ -78,6 +92,7 @@ export default function Flats() {
       setSubmitting(false);
     }
   };
+
 
   const handleAssign = async (e) => {
     e.preventDefault();
