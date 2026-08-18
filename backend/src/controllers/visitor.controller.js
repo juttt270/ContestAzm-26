@@ -49,19 +49,12 @@ export const generateVisitorPass = asyncHandler(async (req, res) => {
   const validFromDate = validFrom ? new Date(validFrom) : new Date();
   const validUntilDate = new Date(validUntil);
 
-  // Generate dynamic QR Code Data URL
-  const qrPayload = JSON.stringify({
-    passCode,
-    qrToken,
-    visitorName,
-    phone,
-    flatId,
-    validUntil: validUntilDate,
-  });
-
-  const qrCodeDataUrl = await QRCode.toDataURL(qrPayload, {
-    errorCorrectionLevel: "H",
-    margin: 2,
+  // Encode just the short qrToken (not the full visitor payload) — a shorter
+  // string means fewer QR modules, so the printed code is easier for a camera
+  // to resolve at a distance instead of needing a dense, packed-in scan.
+  const qrCodeDataUrl = await QRCode.toDataURL(qrToken, {
+    errorCorrectionLevel: "M",
+    margin: 4,
     color: {
       dark: "#0F172A",
       light: "#FFFFFF",
@@ -254,8 +247,8 @@ export const logWalkInVisitor = asyncHandler(async (req, res) => {
   const now = new Date();
   const validUntil = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours default stay window
 
-  const qrPayload = JSON.stringify({ passCode, qrToken, visitorName, phone, flatId: flat._id, validUntil });
-  const qrCodeDataUrl = await QRCode.toDataURL(qrPayload);
+  // Encode just the short qrToken — see the same fix in generateVisitorPass above.
+  const qrCodeDataUrl = await QRCode.toDataURL(qrToken, { errorCorrectionLevel: "M", margin: 4 });
 
   const visitor = await Visitor.create({
     passCode,
@@ -398,8 +391,13 @@ export const getVisitorLogs = asyncHandler(async (req, res) => {
 
   const visitors = await Visitor.find(filter)
     .populate("targetFlatId")
-    .populate("residentId", "name phone")
-    .sort({ createdAt: -1 });
+    .populate("residentId", "name phone");
+
+  // Sort by whichever timestamp is actually shown in the table — checkout time
+  // if they've left, else check-in time, else when the pass was created — so
+  // the most recently checked-in/checked-out visitor always lands on top.
+  const latestActivityAt = (v) => new Date(v.checkedOutAt || v.checkedInAt || v.createdAt).getTime();
+  visitors.sort((a, b) => latestActivityAt(b) - latestActivityAt(a));
 
   return res.status(200).json(new ApiResponse(200, visitors, "Visitor logs retrieved successfully"));
 });

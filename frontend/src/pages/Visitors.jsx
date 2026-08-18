@@ -14,8 +14,8 @@ import SelectField from "@/components/ui/SelectField";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Loader from "@/components/ui/Loader";
 import ImageUpload from "@/components/ui/ImageUpload";
+import ScanResultModal from "@/components/ui/ScanResultModal";
 import { formatDate } from "@/lib/date";
-import { playScanFeedback } from "@/lib/beep";
 import { downloadVisitorPassPdf } from "@/lib/generateVisitorPassPdf";
 import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX, IconLogOut } from "@/components/ui/icons";
 
@@ -57,7 +57,9 @@ export default function Visitors() {
   const [scanIntent, setScanIntent] = useState("CHECK_IN");
   const [manualToken, setManualToken] = useState("");
   const [scanResult, setScanResult] = useState(null);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
   const scannerRef = useRef(null);
 
   const [walkInOpen, setWalkInOpen] = useState(false);
@@ -72,6 +74,11 @@ export default function Visitors() {
 
   const [statusTab, setStatusTab] = useState(role === "Guard" ? "CHECKED_IN" : "All");
   const [cancelTarget, setCancelTarget] = useState(null);
+  // Bumped on every refetch so the Table remounts and drops back to page 1 —
+  // otherwise it keeps whatever page you were on, and a visitor you just
+  // checked in/out (now first in the freshly-sorted list) looks "missing"
+  // because you're still sitting on page 2/3 of the old pagination.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -83,6 +90,7 @@ export default function Visitors() {
       setVisitors(visitorsData);
       if (overstayData) setOverstay(overstayData);
       if (role === "Guard") setFlats(await flatService.getFlats());
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setError(err.message || "Failed to load visitors");
     } finally {
@@ -126,21 +134,24 @@ export default function Visitors() {
       const isCheckout = result.action === "CHECK_OUT";
       setScanResult({
         ok: true,
+        action: result.action,
+        visitor: result.visitor,
         message: isCheckout
-          ? `Exit logged: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`
-          : `Access granted: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`,
+          ? `${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`
+          : `${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`,
       });
-      playScanFeedback(true);
+      setScanModalOpen(true);
       fetchAll();
     } catch (err) {
-      setScanResult({ ok: false, message: err.message || "Verification failed" });
-      playScanFeedback(false);
+      setScanResult({ ok: false, message: err.message || "Unauthorized — verification failed." });
+      setScanModalOpen(true);
     }
   };
 
   const startCamera = async () => {
+    setCameraError("");
     try {
-      const scanner = new Html5Qrcode("qr-reader-region");
+      let scanner = new Html5Qrcode("qr-reader-region");
       scannerRef.current = scanner;
 
       const onDecoded = (decodedText) => {
@@ -150,32 +161,70 @@ export default function Visitors() {
           .then(() => setCameraActive(false))
           .catch(() => {});
       };
-      const config = { fps: 10, qrbox: 220 };
+      // Bigger scan box (fills most of the frame) + higher fps + the browser's native
+      // BarcodeDetector (when available) means the pass decodes from further away
+      // instead of needing to be held right up against the webcam lens.
+      const config = {
+        fps: 25,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.floor(minEdge * 0.85);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1.0,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        // html5-qrcode requires the *first* start() argument to be a single-key
+        // camera selector ({facingMode} or {deviceId}) — extra resolution hints
+        // go here instead. Requesting an ideal 1280x720 stream (instead of the
+        // browser's low-res default) gives the decoder far more pixels to
+        // resolve the QR's modules from, which is what lets it read from a bit
+        // of distance instead of needing to be held right against the lens.
+        videoConstraints: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      };
 
-      // Prefer a rear/back camera (phones, gate tablets); laptops only expose a
-      // front webcam, so forcing facingMode: "environment" finds no match there.
-      let cameraTarget = { facingMode: "environment" };
+      // Ask the browser directly for the rear camera via facingMode, instead of
+      // pre-enumerating devices with getCameras() first — that call opens and
+      // closes its own getUserMedia stream to read device labels, and on many
+      // Windows webcam drivers that "steals" the camera so the real start() call
+      // right after fails with NotReadableError (camera looks completely dead).
+      let startErr = null;
       try {
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras?.length) {
-          const rear = cameras.find((c) => /back|rear|environment/i.test(c.label));
-          cameraTarget = { deviceId: { exact: (rear || cameras[0]).id } };
+        await scanner.start({ facingMode: "environment" }, config, onDecoded, () => {});
+      } catch (err) {
+        startErr = err;
+        // A failed start() can leave this instance's internal state machine stuck
+        // ("Cannot transition to a new state, already under transition") — retrying
+        // on a brand-new instance instead of the same one avoids that entirely.
+        try {
+          scanner.clear();
+        } catch {
+          // Nothing to clear if it never partially started.
         }
-      } catch {
-        // Camera enumeration needs permission first on some browsers — fall through
-        // to the facingMode constraint below and let getUserMedia prompt directly.
+        scanner = new Html5Qrcode("qr-reader-region");
+        scannerRef.current = scanner;
+        try {
+          // No rear camera (e.g. a laptop webcam) — retry front-facing.
+          await scanner.start({ facingMode: "user" }, config, onDecoded, () => {});
+          startErr = null;
+        } catch (err2) {
+          startErr = err2;
+        }
       }
-
-      try {
-        await scanner.start(cameraTarget, config, onDecoded, () => {});
-      } catch {
-        // Laptop with only a front webcam, or the chosen device was rejected — retry front-facing.
-        await scanner.start({ facingMode: "user" }, config, onDecoded, () => {});
-      }
+      if (startErr) throw startErr;
 
       setCameraActive(true);
-    } catch {
-      setScanResult({ ok: false, message: "Camera unavailable — use manual code entry below instead." });
+    } catch (err) {
+      console.error("QR camera start failed:", err);
+      const raw = (typeof err === "string" && err) || err?.name || err?.message || String(err ?? "");
+      let message = raw ? `Camera unavailable: ${raw}` : "Camera unavailable — use manual code entry below instead.";
+      if (/notallowed|permission/i.test(raw)) {
+        message = "Camera permission was denied. Allow camera access for this site in your browser settings, then try again.";
+      } else if (/notreadable|trackstart|in use/i.test(raw)) {
+        message = "The camera is already in use by another app or tab. Close it and try again.";
+      } else if (/notfound|devicesnotfound/i.test(raw)) {
+        message = "No camera was found on this device. Use manual token entry.";
+      }
+      setCameraError(message);
     }
   };
 
@@ -192,7 +241,9 @@ export default function Visitors() {
     if (!scanOpen) {
       stopCamera();
       setScanResult(null);
+      setScanModalOpen(false);
       setManualToken("");
+      setCameraError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanOpen]);
@@ -256,6 +307,16 @@ export default function Visitors() {
       header: "Status",
       render: (r) => <StatusBadge status={r.status}>{STATUS_LABEL[r.status] || r.status}</StatusBadge>,
       exportValue: (r) => STATUS_LABEL[r.status] || r.status,
+    },
+    {
+      key: "checkedInAt",
+      header: "Checked in",
+      render: (r) => (r.checkedInAt ? formatDate(r.checkedInAt, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"),
+    },
+    {
+      key: "checkedOutAt",
+      header: "Checked out",
+      render: (r) => (r.checkedOutAt ? formatDate(r.checkedOutAt, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"),
     },
     { key: "createdAt", header: "Date", align: "right", render: (r) => formatDate(r.createdAt) },
   ];
@@ -393,7 +454,7 @@ export default function Visitors() {
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-600 dark:text-red-400">{error}</div>
       ) : (
         <Table
-          key={statusTab}
+          key={`${statusTab}-${refreshKey}`}
           title="Visitor Log"
           columns={columns}
           data={visibleVisitors}
@@ -498,7 +559,15 @@ export default function Visitors() {
         size="sm"
       >
         <div className="space-y-4">
-          <div id="qr-reader-region" className="mx-auto w-full overflow-hidden rounded-lg bg-black/80" style={{ minHeight: cameraActive ? 220 : 0 }} />
+          {/* Must stay position:relative — html5-qrcode injects its own absolutely-positioned
+              scan-region shading directly inside this div. Without a positioned container here,
+              that overlay anchors to an ancestor further up instead and can paint as a solid
+              block over the live video, even though the camera is actually running. */}
+          <div
+            id="qr-reader-region"
+            className="relative mx-auto w-full overflow-hidden rounded-lg bg-black/80"
+            style={{ minHeight: cameraActive ? 220 : 0 }}
+          />
           {!cameraActive ? (
             <Button type="button" variant="outline" size="sm" className="w-full" onClick={startCamera}>
               <IconQrCode className="h-4 w-4" /> Start camera scan
@@ -513,6 +582,12 @@ export default function Visitors() {
             <span className="h-px flex-1 bg-line-soft" /> or enter manually <span className="h-px flex-1 bg-line-soft" />
           </div>
 
+          {cameraError && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+              {cameraError}
+            </div>
+          )}
+
           <TextField
             label="Gate code / QR token"
             value={manualToken}
@@ -522,20 +597,10 @@ export default function Visitors() {
           <Button type="button" variant="primary" size="sm" className="w-full" disabled={!manualToken.trim()} onClick={() => runVerify(manualToken.trim())}>
             Verify
           </Button>
-
-          {scanResult && (
-            <div
-              className={`rounded-lg border px-3 py-2.5 text-sm ${
-                scanResult.ok
-                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                  : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
-              }`}
-            >
-              {scanResult.message}
-            </div>
-          )}
         </div>
       </Modal>
+
+      <ScanResultModal open={scanModalOpen} result={scanResult} onClose={() => setScanModalOpen(false)} autoDismissTime={4500} />
 
       <Modal
         open={walkInOpen}

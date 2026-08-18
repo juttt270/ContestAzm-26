@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { IconMenu, IconSearch, IconBell, IconChevronDown, IconSun, IconMoon } from "@/components/ui/icons";
+import { IconMenu, IconSearch, IconChevronDown, IconSun, IconMoon } from "@/components/ui/icons";
 import Menu from "@/components/ui/Menu";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -45,11 +45,6 @@ export default function Topbar({ onMenuClick, onLogoutClick }) {
           aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {theme === "dark" ? <IconSun className="h-[18px] w-[18px]" /> : <IconMoon className="h-[18px] w-[18px]" />}
-        </button>
-
-        <button type="button" className={`relative ${pillButton}`} aria-label="Notifications">
-          <IconBell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-ink shadow-[0_0_6px_rgba(0,0,0,0.3)] dark:shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
         </button>
 
         <div className="h-6 w-px bg-line" />

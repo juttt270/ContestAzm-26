@@ -82,9 +82,15 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse, on
         } ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className={`flex h-16 shrink-0 items-center border-b border-line-soft ${collapsed ? "justify-center px-0" : "gap-2.5 px-5"}`}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black shadow-[0_2px_10px_rgba(0,0,0,0.2)] dark:bg-white dark:shadow-[0_2px_10px_rgba(255,255,255,0.12)]">
-            <img src={logoIcon} alt="" className="h-7 w-7 object-contain" />
-          </span>
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Visit the SmartSociety website"
+            className="flex shrink-0 items-center transition hover:opacity-80"
+          >
+            <img src={logoIcon} alt="SmartSociety" className="h-10 w-10 object-contain" />
+          </a>
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight text-ink">{env.APP_NAME}</p>
