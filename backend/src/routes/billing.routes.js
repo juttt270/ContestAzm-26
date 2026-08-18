@@ -5,11 +5,15 @@ import {
   getBills,
   payMaintenanceBill,
   getCollectionReport,
+  checkFlatDues,
 } from "../controllers/billing.controller.js";
 import { protect, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.js";
 
 const router = express.Router();
+
+// Public marketing-site route — must be registered before the blanket protect() below.
+router.get("/check", checkFlatDues);
 
 router.use(protect);
 

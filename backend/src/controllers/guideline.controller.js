@@ -1,8 +1,10 @@
 import { Guideline } from "../models/guideline.model.js";
+import { User } from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { sendBulkEmail } from "../utils/emailService.js";
 
 // @desc    Publish a society guideline (Admin)
 // @route   POST /api/v1/guidelines
@@ -29,6 +31,14 @@ export const createGuideline = asyncHandler(async (req, res) => {
     targetId: guideline._id,
     details: { title: guideline.title },
     req,
+  });
+
+  const residents = await User.find({ role: "Resident", isActive: true }).select("email");
+  await sendBulkEmail({
+    recipients: residents.map((r) => r.email),
+    subject: `New Society Guideline: ${title}`,
+    title: "New Guideline Published",
+    bodyHtml: `<p><b>${title}</b></p><p>${content}</p><p>Category: ${category || "General"}</p>`,
   });
 
   return res.status(201).json(new ApiResponse(201, guideline, "Guideline published successfully"));

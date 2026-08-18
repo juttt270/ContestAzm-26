@@ -5,6 +5,12 @@ export const getBills = async (params) => {
   return res.data;
 };
 
+/** Public — no login required. Looks up the latest bill for a flat, e.g. "B-402". */
+export const checkFlatDues = async (flat) => {
+  const res = await axiosClient.get("/bills/check", { params: { flat } });
+  return res.data;
+};
+
 export const getCollectionReport = async () => {
   const res = await axiosClient.get("/bills/reports/collection");
   return res.data;

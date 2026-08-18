@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { NAV_SECTIONS } from "@/components/layout/navConfig";
 import { ROLE_LABELS } from "@/constants";
 import { IconLogOut, IconChevronLeft, IconChevronRight } from "@/components/ui/icons";
+import logoIcon from "@/assets/logo-icon.png";
 
 function NavItem({ item, collapsed }) {
   const Icon = item.icon;
@@ -81,8 +82,8 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse, on
         } ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className={`flex h-16 shrink-0 items-center border-b border-line-soft ${collapsed ? "justify-center px-0" : "gap-2.5 px-5"}`}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-900 to-black text-sm font-bold text-white shadow-[0_2px_10px_rgba(0,0,0,0.2)] dark:from-white dark:to-zinc-300 dark:text-black dark:shadow-[0_2px_10px_rgba(255,255,255,0.12)]">
-            {env.APP_NAME.charAt(0)}
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black shadow-[0_2px_10px_rgba(0,0,0,0.2)] dark:bg-white dark:shadow-[0_2px_10px_rgba(255,255,255,0.12)]">
+            <img src={logoIcon} alt="" className="h-7 w-7 object-contain" />
           </span>
           {!collapsed && (
             <div className="min-w-0">

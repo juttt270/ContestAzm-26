@@ -1,9 +1,11 @@
 import { EmergencyAlert } from "../models/emergencyAlert.model.js";
 import { EmergencyContact } from "../models/emergencyContact.model.js";
+import { User } from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { sendBulkEmail } from "../utils/emailService.js";
 
 // @desc    Trigger Emergency SOS Siren Alert (Resident, Guard, Admin)
 // @route   POST /api/v1/emergency/trigger
@@ -27,6 +29,20 @@ export const triggerEmergencyAlert = asyncHandler(async (req, res) => {
   const populatedAlert = await EmergencyAlert.findById(alert._id)
     .populate("senderId", "name phone email role")
     .populate("flatId");
+
+  const notifyTargets = await User.find({ role: { $in: ["Guard", "Admin"] }, isActive: true }).select("email");
+  await sendBulkEmail({
+    recipients: notifyTargets.map((u) => u.email),
+    subject: `🚨 EMERGENCY: ${alertType.toUpperCase()} — Immediate Attention Required`,
+    title: `Emergency SOS: ${alertType}`,
+    bodyHtml: `
+      <p><b>${req.user.name}</b> has triggered a <b>${alertType}</b> emergency alert.</p>
+      <p><b>Location:</b> ${populatedAlert.locationDetails}</p>
+      <p><b>Flat:</b> ${populatedAlert.flatId ? `${populatedAlert.flatId.blockName}-${populatedAlert.flatId.flatNumber}` : "N/A"}</p>
+      <p><b>Contact:</b> ${req.user.phone}</p>
+      <p style="color:#dc2626;font-weight:600;">Please respond immediately.</p>
+    `,
+  });
 
   return res.status(201).json(
     new ApiResponse(

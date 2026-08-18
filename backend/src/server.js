@@ -1,7 +1,12 @@
+import dns from "node:dns";
 import app from "./app.js";
 import { env, validateEnv } from "./config/env.js";
 import { connectDB, disconnectDB } from "./config/db.js";
 import { logger } from "./utils/logger.js";
+
+// Some Windows networks resolve Atlas hostnames to an IPv6 address that then times out,
+// which Node reports as a misleading ENOTFOUND. Preferring IPv4 avoids that flakiness.
+dns.setDefaultResultOrder("ipv4first");
 
 const startServer = async () => {
   validateEnv();

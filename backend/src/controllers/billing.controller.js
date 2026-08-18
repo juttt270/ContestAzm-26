@@ -1,10 +1,14 @@
 import { MaintenanceBill } from "../models/maintenanceBill.model.js";
 import { Flat } from "../models/flat.model.js";
+import { User } from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { sendEmail } from "../utils/emailService.js";
+
+const formatCurrency = (n) => `Rs ${Number(n || 0).toLocaleString("en-IN")}`;
 
 /** Helper to generate bill number e.g. INV-202608-001 */
 const generateBillNumber = (billingMonth, index) => {
@@ -19,6 +23,56 @@ const defaultBreakdown = (amountDue) => ({
   securityCharges: Math.round(amountDue * 0.32),
   repairCharges: Math.round(amountDue * 0.16),
   commonAreaCharges: Math.round(amountDue * 0.32),
+});
+
+// @desc    Public flat-dues lookup for the marketing homepage — no resident personal info returned.
+// @route   GET /api/v1/bills/check?flat=B-402
+// @access  Public
+export const checkFlatDues = asyncHandler(async (req, res) => {
+  const { flat } = req.query;
+  if (!flat || !flat.trim()) {
+    throw new ApiError(400, "Please provide a flat number, e.g. B-402.");
+  }
+
+  const cleaned = flat.trim().toUpperCase();
+  const separatorIndex = cleaned.search(/[-\s]/);
+  if (separatorIndex === -1) {
+    return res.status(200).json(new ApiResponse(200, { found: false }, "Flat not found."));
+  }
+
+  const blockName = cleaned.slice(0, separatorIndex);
+  const flatNumber = cleaned.slice(separatorIndex + 1).trim();
+
+  const flatDoc = await Flat.findOne({ blockName, flatNumber });
+  if (!flatDoc) {
+    return res.status(200).json(new ApiResponse(200, { found: false }, "Flat not found."));
+  }
+
+  const latestBill = await MaintenanceBill.findOne({ flatId: flatDoc._id }).sort({ createdAt: -1 });
+  if (!latestBill) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { found: true, hasBills: false, flat: `${blockName}-${flatNumber}` }, "No bills yet for this flat."));
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        found: true,
+        hasBills: true,
+        flat: `${blockName}-${flatNumber}`,
+        billingMonth: latestBill.billingMonth,
+        breakdown: latestBill.breakdown,
+        penaltyAmount: latestBill.penaltyAmount,
+        amountDue: latestBill.amountDue,
+        totalDue: latestBill.amountDue + (latestBill.penaltyAmount || 0),
+        dueDate: latestBill.dueDate,
+        paymentStatus: latestBill.paymentStatus,
+      },
+      "Dues retrieved successfully"
+    )
+  );
 });
 
 // @desc    Generate Monthly Maintenance Bills for all occupied flats (Admin)
@@ -62,6 +116,21 @@ export const generateMonthlyBills = asyncHandler(async (req, res) => {
     });
 
     generatedBills.push(bill);
+
+    const resident = await User.findById(residentId).select("email name");
+    await sendEmail({
+      to: resident?.email,
+      subject: `New Maintenance Bill — ${bill.billNumber} (${billingMonth})`,
+      title: "New Maintenance Bill Generated",
+      bodyHtml: `
+        <p>Hi ${resident?.name || "Resident"},</p>
+        <p>Your maintenance bill for <b>${billingMonth}</b> has been generated.</p>
+        <p><b>Bill Number:</b> ${bill.billNumber}<br/>
+           <b>Amount Due:</b> ${formatCurrency(bill.amountDue)}<br/>
+           <b>Due Date:</b> ${new Date(dueDate).toLocaleDateString()}</p>
+        <p>Please log in to SmartSociety to pay your dues.</p>
+      `,
+    });
   }
 
   await logAudit({
@@ -102,6 +171,19 @@ export const applyOverduePenalties = asyncHandler(async (req, res) => {
     bill.penaltyAmount = Math.round((bill.amountDue * penaltyPercentage) / 100);
     await bill.save();
     updatedCount++;
+
+    const resident = await User.findById(bill.residentId).select("email name");
+    await sendEmail({
+      to: resident?.email,
+      subject: `Overdue Notice — Bill ${bill.billNumber}`,
+      title: "Maintenance Bill Overdue",
+      bodyHtml: `
+        <p>Hi ${resident?.name || "Resident"},</p>
+        <p>Your bill <b>${bill.billNumber}</b> is now overdue. A penalty of <b>${formatCurrency(bill.penaltyAmount)}</b> has been applied.</p>
+        <p><b>Total Due:</b> ${formatCurrency(bill.amountDue + bill.penaltyAmount)}</p>
+        <p>Please pay as soon as possible to avoid further penalties.</p>
+      `,
+    });
   }
 
   await logAudit({

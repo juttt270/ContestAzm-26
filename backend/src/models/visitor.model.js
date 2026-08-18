@@ -81,6 +81,7 @@ const visitorSchema = new mongoose.Schema(
     },
     checkedInAt: { type: Date, default: null },
     checkedOutAt: { type: Date, default: null },
+    overstayNotified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -14,6 +14,12 @@ export const getAmenities = async () => {
   return res.data;
 };
 
+/** Public — no login required. Returns a safe subset of fields for the marketing homepage. */
+export const getPublicAmenities = async () => {
+  const res = await axiosClient.get("/amenities/public");
+  return res.data;
+};
+
 export const checkAvailability = async (id, bookingDate) => {
   const res = await axiosClient.get(`/amenities/${id}/availability`, { params: { bookingDate } });
   return res.data;

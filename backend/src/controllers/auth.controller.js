@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinaryUpload.js";
+import { sendEmail } from "../utils/emailService.js";
 
 /**
  * Helper to generate tokens and attach refresh token cookie
@@ -42,9 +43,9 @@ const generateTokensAndRespond = async (user, statusCode, message, res) => {
     );
 };
 
-// @desc    Register a new user (Resident, Guard, Staff, Admin)
+// @desc    Register a new user with any role/flat assignment (Admin provisioning)
 // @route   POST /api/v1/auth/register
-// @access  Public (or Admin for staff)
+// @access  Private (Admin)
 export const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, phone, role, flatId, occupancyStatus, profession } = req.body;
 
@@ -78,7 +79,59 @@ export const registerUser = asyncHandler(async (req, res) => {
     avatar: avatarData,
   });
 
+  await sendEmail({
+    to: user.email,
+    subject: "Welcome to SmartSociety — Your account is ready",
+    title: "Your Account Has Been Created",
+    bodyHtml: `
+      <p>Hi ${user.name},</p>
+      <p>An administrator has created a <b>${user.role}</b> account for you on SmartSociety.</p>
+      <p><b>Email:</b> ${user.email}<br/><b>Temporary Password:</b> ${password}</p>
+      <p>Please sign in and change your password from your profile as soon as possible.</p>
+    `,
+  });
+
   return generateTokensAndRespond(user, 201, "User registered successfully", res);
+});
+
+// @desc    Public self-registration — always creates a Resident account with no flat assigned yet.
+//          Role, flatId, and profession are never accepted from this endpoint (Admin assigns a flat afterwards).
+// @route   POST /api/v1/auth/signup
+// @access  Public
+export const registerResident = asyncHandler(async (req, res) => {
+  const { name, email, password, phone } = req.body;
+
+  if (!name || !email || !password || !phone) {
+    throw new ApiError(400, "Please provide name, email, password, and phone number.");
+  }
+
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    throw new ApiError(409, "User with this email address already exists.");
+  }
+
+  const user = await User.create({
+    name,
+    email: email.toLowerCase(),
+    password,
+    phone,
+    role: "Resident",
+    flatId: null,
+    occupancyStatus: "None",
+  });
+
+  await sendEmail({
+    to: user.email,
+    subject: "Welcome to SmartSociety!",
+    title: "Welcome to SmartSociety",
+    bodyHtml: `
+      <p>Hi ${user.name},</p>
+      <p>Your Resident account has been created successfully. An admin will link your account to your flat shortly.</p>
+      <p>You can log in anytime with the email and password you just set.</p>
+    `,
+  });
+
+  return generateTokensAndRespond(user, 201, "Account created successfully. Welcome to SmartSociety!", res);
 });
 
 // @desc    Authenticate user & get tokens

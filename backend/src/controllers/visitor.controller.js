@@ -3,10 +3,12 @@ import crypto from "crypto";
 import { Visitor } from "../models/visitor.model.js";
 import { GateLog } from "../models/gateLog.model.js";
 import { Flat } from "../models/flat.model.js";
+import { User } from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
+import { sendBulkEmail } from "../utils/emailService.js";
 
 /** Helper to generate random 6-digit numeric pass code */
 const generatePassCode = () => {
@@ -95,7 +97,7 @@ export const generateVisitorPass = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/visitors/verify-qr
 // @access  Private (Guard, Admin)
 export const verifyQrCodePass = asyncHandler(async (req, res) => {
-  const { qrToken, passCode, notes } = req.body;
+  const { qrToken, passCode, notes, intent } = req.body;
 
   if (!qrToken && !passCode) {
     throw new ApiError(400, "Please provide qrToken or passCode from the scanned QR code.");
@@ -113,6 +115,53 @@ export const verifyQrCodePass = asyncHandler(async (req, res) => {
 
   const now = new Date();
 
+  // Dedicated exit-scan flow: the guard explicitly opened the Checkout scanner,
+  // so only allow it to complete a checkout — never silently check someone in.
+  if (intent === "CHECK_OUT") {
+    if (visitor.status !== "CHECKED_IN" && visitor.status !== "Checked-In") {
+      const reason =
+        visitor.status === "COMPLETED" || visitor.status === "Checked-Out"
+          ? "This visitor has already checked out."
+          : visitor.status === "CANCELLED"
+            ? "This pass was cancelled — the visitor never checked in."
+            : "This visitor hasn't checked in yet, so there's nothing to check out.";
+      throw new ApiError(400, reason);
+    }
+
+    visitor.status = "COMPLETED";
+    visitor.checkedOutAt = now;
+    await visitor.save();
+
+    await GateLog.create({
+      visitorId: visitor._id,
+      flatId: visitor.targetFlatId._id,
+      guardId: req.user._id,
+      action: "CHECK_OUT",
+      notes: notes || `Verified QR code payload (Token: ${visitor.qrToken}) at security gate terminal on exit`,
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          clearanceGranted: true,
+          action: "CHECK_OUT",
+          visitor: {
+            id: visitor._id,
+            visitorName: visitor.visitorName,
+            phone: visitor.phone,
+            vehicleNumber: visitor.vehicleNumber,
+            targetFlat: visitor.targetFlatId,
+            resident: visitor.residentId,
+            checkedOutAt: visitor.checkedOutAt,
+            status: visitor.status,
+          },
+        },
+        "EXIT LOGGED: Visitor checked out successfully."
+      )
+    );
+  }
+
   // Expiry check
   if (visitor.status === "EXPIRED" || now > visitor.validUntil) {
     visitor.status = "EXPIRED";
@@ -125,11 +174,11 @@ export const verifyQrCodePass = asyncHandler(async (req, res) => {
   }
 
   if (visitor.status === "CHECKED_IN" || visitor.status === "Checked-In") {
-    throw new ApiError(400, `Visitor is ALREADY checked in at ${visitor.checkedInAt?.toLocaleString() || "the gate"}.`);
+    throw new ApiError(400, `Visitor is ALREADY checked in at ${visitor.checkedInAt?.toLocaleString() || "the gate"}. Use the Checkout scan to log their exit.`);
   }
 
   if (visitor.status === "COMPLETED" || visitor.status === "Checked-Out") {
-    throw new ApiError(400, "This single-use QR pass has already been used and completed.");
+    throw new ApiError(400, "This visitor has already checked out. The pass is no longer valid for entry.");
   }
 
   // Perform Gate Clearance and Check-In
@@ -151,6 +200,7 @@ export const verifyQrCodePass = asyncHandler(async (req, res) => {
       200,
       {
         clearanceGranted: true,
+        action: "CHECK_IN",
         visitor: {
           id: visitor._id,
           visitorName: visitor.visitorName,
@@ -300,6 +350,30 @@ export const getOverstayAlerts = asyncHandler(async (req, res) => {
   })
     .populate("targetFlatId")
     .populate("residentId", "name phone");
+
+  // Notify Guards & Admins once per visitor the first time an overstay is detected.
+  const freshOverstays = overstayVisitors.filter((v) => !v.overstayNotified);
+  if (freshOverstays.length > 0) {
+    const notifyTargets = await User.find({ role: { $in: ["Guard", "Admin"] }, isActive: true }).select("email");
+    await sendBulkEmail({
+      recipients: notifyTargets.map((u) => u.email),
+      subject: `⚠ Visitor Overstay Alert — ${freshOverstays.length} visitor(s)`,
+      title: "Visitor Overstay Alert",
+      bodyHtml: `
+        <p>The following visitor pass(es) have exceeded their approved valid-until time and have not checked out:</p>
+        <ul>
+          ${freshOverstays
+            .map(
+              (v) =>
+                `<li><b>${v.visitorName}</b> — Flat ${v.targetFlatId?.blockName || ""}-${v.targetFlatId?.flatNumber || ""}, was due out by ${new Date(v.validUntil).toLocaleString()}</li>`
+            )
+            .join("")}
+        </ul>
+        <p>Please follow up at the gate.</p>
+      `,
+    });
+    await Visitor.updateMany({ _id: { $in: freshOverstays.map((v) => v._id) } }, { $set: { overstayNotified: true } });
+  }
 
   return res
     .status(200)

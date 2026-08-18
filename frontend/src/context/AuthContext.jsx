@@ -31,6 +31,14 @@ export function AuthProvider({ children }) {
     return loggedInUser;
   };
 
+  const signup = async (payload) => {
+    const { user: newUser, accessToken, refreshToken } = await authService.signup(payload);
+    localStorage.setItem("token", accessToken);
+    localStorage.setItem("refreshToken", refreshToken);
+    setUser(newUser);
+    return newUser;
+  };
+
   const logout = async () => {
     try {
       await authService.logout();
@@ -48,6 +56,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: Boolean(user),
     loading,
     login,
+    signup,
     logout,
     setUser,
   };

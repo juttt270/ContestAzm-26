@@ -5,6 +5,7 @@ import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { sendEmail, sendBulkEmail } from "../utils/emailService.js";
 
 /** Helper to generate ticket number */
 const generateTicketNumber = () => {
@@ -61,6 +62,20 @@ export const createComplaint = asyncHandler(async (req, res) => {
     priority: priority || "Medium",
     status: "OPEN",
     slaDueDate,
+  });
+
+  const admins = await User.find({ role: "Admin", isActive: true }).select("email");
+  await sendBulkEmail({
+    recipients: admins.map((a) => a.email),
+    subject: `New Complaint — ${complaint.ticketNumber}: ${title}`,
+    title: "New Complaint Raised",
+    bodyHtml: `
+      <p><b>${req.user.name}</b> raised a new <b>${priority || "Medium"}</b> priority complaint.</p>
+      <p><b>Ticket:</b> ${complaint.ticketNumber}</p>
+      <p><b>Category:</b> ${category}</p>
+      <p><b>Title:</b> ${title}</p>
+      <p><b>Description:</b> ${description}</p>
+    `,
   });
 
   return res.status(201).json(new ApiResponse(201, complaint, "Complaint ticket submitted successfully"));
@@ -161,6 +176,20 @@ export const updateComplaintStatus = asyncHandler(async (req, res) => {
     details: { ticketNumber: complaint.ticketNumber, from: previousStatus, to: status },
     req,
   });
+
+  if (previousStatus !== status) {
+    const resident = await User.findById(complaint.residentId).select("email name");
+    await sendEmail({
+      to: resident?.email,
+      subject: `Complaint ${complaint.ticketNumber} — Status: ${status.replace(/_/g, " ")}`,
+      title: "Your Complaint Status Was Updated",
+      bodyHtml: `
+        <p>Hi ${resident?.name || "Resident"},</p>
+        <p>Your complaint <b>${complaint.ticketNumber}</b> is now <b>${status.replace(/_/g, " ")}</b>.</p>
+        ${resolutionNotes ? `<p><b>Notes:</b> ${resolutionNotes}</p>` : ""}
+      `,
+    });
+  }
 
   return res
     .status(200)

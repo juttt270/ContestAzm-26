@@ -1,6 +1,7 @@
 import express from "express";
 import {
   registerUser,
+  registerResident,
   loginUser,
   refreshAccessToken,
   logoutUser,
@@ -8,12 +9,13 @@ import {
   updateProfile,
   changePassword,
 } from "../controllers/auth.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { protect, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.js";
 
 const router = express.Router();
 
-router.post("/register", upload.single("avatar"), registerUser);
+router.post("/signup", registerResident);
+router.post("/register", protect, authorizeRoles("Admin"), upload.single("avatar"), registerUser);
 router.post("/login", loginUser);
 router.post("/refresh-token", refreshAccessToken);
 

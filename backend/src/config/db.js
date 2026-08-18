@@ -29,17 +29,28 @@ const setupConnectionEvents = () => {
   });
 };
 
-/** Initializes MongoDB Atlas connection with resilient retry logic */
-export const connectDB = async () => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Initializes MongoDB Atlas connection with resilient retry logic.
+ *  DNS lookups for the Atlas shard hosts occasionally fail transiently on some
+ *  networks (ENOTFOUND) — a few short retries clear this up without needing a
+ *  manual restart every time. */
+export const connectDB = async (maxAttempts = 4) => {
   setupConnectionEvents();
 
-  try {
-    const conn = await mongoose.connect(env.MONGO_URI, MONGO_OPTIONS);
-    logger.info(`MongoDB Connected: ${conn.connection.host} / Database: ${conn.connection.name}`);
-    return conn;
-  } catch (error) {
-    logger.error(`MongoDB initial connection failure: ${error.message}`);
-    process.exit(1);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const conn = await mongoose.connect(env.MONGO_URI, MONGO_OPTIONS);
+      logger.info(`MongoDB Connected: ${conn.connection.host} / Database: ${conn.connection.name}`);
+      return conn;
+    } catch (error) {
+      logger.error(`MongoDB connection attempt ${attempt}/${maxAttempts} failed: ${error.message}`);
+      if (attempt === maxAttempts) {
+        logger.error("MongoDB connection failed after all retries. Exiting.");
+        process.exit(1);
+      }
+      await sleep(1500 * attempt);
+    }
   }
 };
 

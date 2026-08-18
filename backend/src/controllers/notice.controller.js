@@ -1,8 +1,10 @@
 import { Notice } from "../models/notice.model.js";
+import { User } from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
+import { sendBulkEmail } from "../utils/emailService.js";
 
 // @desc    Create a new society notice or poll (Admin)
 // @route   POST /api/v1/notices
@@ -56,6 +58,19 @@ export const createNotice = asyncHandler(async (req, res) => {
     isPoll,
     pollOptions: formattedPollOptions,
     expiresAt: expiresAt ? new Date(expiresAt) : null,
+  });
+
+  const residents = await User.find({ role: "Resident", isActive: true }).select("email");
+  await sendBulkEmail({
+    recipients: residents.map((r) => r.email),
+    subject: `${isPoll ? "New Poll" : "New " + (category || "Announcement")}: ${title}`,
+    title: isPoll ? "New Community Poll" : "New Notice Published",
+    bodyHtml: `
+      <p>A new ${isPoll ? "poll" : "notice"} has been published by the society administration.</p>
+      <p><b>${title}</b></p>
+      <p>${content}</p>
+      <p>Log in to SmartSociety to view details${isPoll ? " and cast your vote" : ""}.</p>
+    `,
   });
 
   return res.status(201).json(new ApiResponse(201, notice, "Notice published successfully"));

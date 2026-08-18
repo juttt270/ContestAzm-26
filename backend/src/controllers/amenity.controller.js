@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinaryUpload.js";
+import { sendEmail } from "../utils/emailService.js";
 
 // @desc    Create a new society amenity (Admin)
 // @route   POST /api/v1/amenities
@@ -45,6 +46,14 @@ export const createAmenity = asyncHandler(async (req, res) => {
 // @access  Private
 export const getAllAmenities = asyncHandler(async (req, res) => {
   const amenities = await Amenity.find({ isActive: true });
+  return res.status(200).json(new ApiResponse(200, amenities, "Amenities retrieved successfully"));
+});
+
+// @desc    Get a safe public subset of amenities for the marketing website (no auth required)
+// @route   GET /api/v1/amenities/public
+// @access  Public
+export const getPublicAmenities = asyncHandler(async (req, res) => {
+  const amenities = await Amenity.find({ isActive: true }).select("name description capacity bookingFee image");
   return res.status(200).json(new ApiResponse(200, amenities, "Amenities retrieved successfully"));
 });
 
@@ -122,6 +131,17 @@ export const bookAmenity = asyncHandler(async (req, res) => {
     notes: notes || "",
     totalFee: amenity.bookingFee || 0,
     status: "CONFIRMED",
+  });
+
+  await sendEmail({
+    to: req.user.email,
+    subject: `Booking Confirmed — ${amenity.name} on ${bookingDate}`,
+    title: "Amenity Booking Confirmed",
+    bodyHtml: `
+      <p>Hi ${req.user.name},</p>
+      <p>Your booking for <b>${amenity.name}</b> is confirmed.</p>
+      <p><b>Date:</b> ${bookingDate}<br/><b>Time:</b> ${startTime} – ${endTime}<br/><b>Guests:</b> ${guestCount || 1}</p>
+    `,
   });
 
   return res

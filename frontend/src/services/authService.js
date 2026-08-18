@@ -15,11 +15,17 @@ export const login = async (email, password) => {
   return res.data;
 };
 
-/** Register a new user (Admin creating Resident/Guard/Staff, or self-signup). */
+/** Admin-only — creates a Resident/Guard/Staff/Admin account with a chosen role and flat. */
 export const register = async (payload) => {
   const res = await axiosClient.post("/auth/register", toFormData(payload), {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return res.data;
+};
+
+/** Public self-signup — always creates a Resident account, no flat assigned yet. */
+export const signup = async ({ name, email, password, phone }) => {
+  const res = await axiosClient.post("/auth/signup", { name, email, password, phone });
   return res.data;
 };
 

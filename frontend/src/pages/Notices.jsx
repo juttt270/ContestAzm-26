@@ -162,7 +162,8 @@ export default function Notices() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {visibleNotices.map((n) => {
             const totalVotes = n.pollOptions?.reduce((sum, o) => sum + o.votesCount, 0) || 0;
-            const hasVoted = n.pollOptions?.some((o) => o.votedUserIds?.includes(user?._id));
+            const votedOption = n.pollOptions?.find((o) => o.votedUserIds?.includes(user?._id));
+            const hasVoted = Boolean(votedOption);
             return (
               <div key={n._id} className="relative rounded-xl border border-line bg-surface p-5">
                 {role === "Admin" && (
@@ -188,17 +189,28 @@ export default function Notices() {
                   <div className="mt-4 space-y-2 border-t border-line-soft pt-4">
                     {n.pollOptions.map((opt) => {
                       const pct = totalVotes ? Math.round((opt.votesCount / totalVotes) * 100) : 0;
+                      const isMyVote = votedOption?._id === opt._id;
                       return (
                         <button
                           key={opt._id}
                           type="button"
                           disabled={hasVoted || role !== "Resident"}
                           onClick={() => handleVote(n._id, opt._id)}
-                          className="relative w-full overflow-hidden rounded-lg border border-line bg-canvas px-3 py-2 text-left text-sm text-ink-dim transition hover:border-ink-ghost disabled:cursor-default disabled:hover:border-line"
+                          className={`relative w-full overflow-hidden rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-default ${
+                            isMyVote
+                              ? "border-emerald-500/40 bg-emerald-500/[0.06] text-ink"
+                              : "border-line bg-canvas text-ink-dim hover:border-ink-ghost disabled:hover:border-line"
+                          }`}
                         >
-                          <span className="absolute inset-y-0 left-0 bg-ink/[0.06]" style={{ width: `${pct}%` }} />
-                          <span className="relative flex items-center justify-between">
-                            <span>{opt.optionText}</span>
+                          <span
+                            className={`absolute inset-y-0 left-0 ${isMyVote ? "bg-emerald-500/10" : "bg-ink/[0.06]"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                          <span className="relative flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5">
+                              {isMyVote && <IconCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                              <span className={isMyVote ? "font-medium" : ""}>{opt.optionText}</span>
+                            </span>
                             <span className="text-xs text-ink-ghost">
                               {pct}% ({opt.votesCount})
                             </span>
@@ -208,7 +220,7 @@ export default function Notices() {
                     })}
                     {hasVoted && (
                       <p className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                        <IconCheck className="h-3.5 w-3.5" /> You voted
+                        <IconCheck className="h-3.5 w-3.5" /> You voted for "{votedOption.optionText}"
                       </p>
                     )}
                   </div>

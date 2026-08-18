@@ -87,4 +87,60 @@
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
+
+  /* Scoped to the public marketing homepage only (toggled via HomePage.jsx) — never affects the dashboard. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Marketing homepage Hero — the pinned scroll-driven card that expands to fullscreen. */
+  .hero-expanding-card {
+    position: absolute;
+    bottom: 0;
+    left: 7.5%;
+    right: 7.5%;
+    height: 30vh;
+    border-top-left-radius: 36px;
+    border-top-right-radius: 36px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    will-change: left, right, height, border-radius;
+  }
+
+  @media (min-width: 640px) {
+    .hero-expanding-card {
+      left: 17.5%;
+      right: 17.5%;
+      height: 35vh;
+      border-top-left-radius: 40px;
+      border-top-right-radius: 40px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .hero-expanding-card {
+      left: 25%;
+      right: 25%;
+      height: 35vh;
+      border-top-left-radius: 40px;
+      border-top-right-radius: 40px;
+    }
+  }
 }

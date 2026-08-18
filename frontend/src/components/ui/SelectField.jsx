@@ -17,7 +17,7 @@ export default function SelectField({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, openUp: false, maxHeight: 300 });
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
   const searchRef = useRef(null);
@@ -32,7 +32,21 @@ export default function SelectField({
   const openPanel = () => {
     if (disabled) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setCoords({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    // Flip upward when there isn't enough room below but there's more room above —
+    // otherwise the panel would render partly or fully off the bottom of the screen.
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(140, Math.min(320, openUp ? spaceAbove : spaceBelow));
+    setCoords({
+      top: openUp ? undefined : rect.bottom + gap,
+      bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+      left: rect.left,
+      width: rect.width,
+      openUp,
+      maxHeight,
+    });
     setQuery("");
     setOpen(true);
   };
@@ -88,11 +102,17 @@ export default function SelectField({
           {open && (
             <motion.div
               ref={panelRef}
-              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              initial={{ opacity: 0, y: coords.openUp ? 6 : -6, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              exit={{ opacity: 0, y: coords.openUp ? 6 : -6, scale: 0.98 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              style={{ position: "fixed", top: coords.top, left: coords.left, width: coords.width }}
+              style={{
+                position: "fixed",
+                top: coords.top,
+                bottom: coords.bottom,
+                left: coords.left,
+                width: coords.width,
+              }}
               className="z-50 overflow-hidden rounded-xl border border-line bg-surface shadow-2xl shadow-black/10 ring-1 ring-black/5 dark:shadow-black/60 dark:ring-black/40"
             >
               {showSearch && (
@@ -109,7 +129,7 @@ export default function SelectField({
                   </span>
                 </div>
               )}
-              <div className="max-h-56 overflow-y-auto py-1.5">
+              <div className="overflow-y-auto py-1.5" style={{ maxHeight: coords.maxHeight - (showSearch ? 52 : 0) }}>
                 {filtered.length === 0 ? (
                   <p className="px-3.5 py-3 text-center text-sm text-ink-ghost">No matches found</p>
                 ) : (

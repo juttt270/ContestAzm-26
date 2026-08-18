@@ -17,7 +17,7 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import { formatDate } from "@/lib/date";
 import { playScanFeedback } from "@/lib/beep";
 import { downloadVisitorPassPdf } from "@/lib/generateVisitorPassPdf";
-import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX } from "@/components/ui/icons";
+import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX, IconLogOut } from "@/components/ui/icons";
 
 const VISITOR_TYPES = ["Guest", "Delivery", "Cab", "Vendor", "Service"];
 const STATUS_LABEL = {
@@ -54,6 +54,7 @@ export default function Visitors() {
   const [generatedPass, setGeneratedPass] = useState(null);
 
   const [scanOpen, setScanOpen] = useState(false);
+  const [scanIntent, setScanIntent] = useState("CHECK_IN");
   const [manualToken, setManualToken] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -119,9 +120,16 @@ export default function Visitors() {
       // raw text — treat as-is below
     }
     try {
-      const payload = qrToken.startsWith("VQR-") ? { qrToken } : { passCode: qrToken };
+      const base = qrToken.startsWith("VQR-") ? { qrToken } : { passCode: qrToken };
+      const payload = scanIntent === "CHECK_OUT" ? { ...base, intent: "CHECK_OUT" } : base;
       const result = await visitorService.verifyQrPass(payload);
-      setScanResult({ ok: true, message: `Access granted: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}` });
+      const isCheckout = result.action === "CHECK_OUT";
+      setScanResult({
+        ok: true,
+        message: isCheckout
+          ? `Exit logged: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`
+          : `Access granted: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}`,
+      });
       playScanFeedback(true);
       fetchAll();
     } catch (err) {
@@ -320,8 +328,25 @@ export default function Visitors() {
               >
                 <IconPlus className="h-4 w-4" /> Log Walk-in
               </Button>
-              <Button variant="primary" size="md" onClick={() => setScanOpen(true)}>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  setScanIntent("CHECK_IN");
+                  setScanOpen(true);
+                }}
+              >
                 <IconQrCode className="h-4 w-4" /> Scan / Verify Pass
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setScanIntent("CHECK_OUT");
+                  setScanOpen(true);
+                }}
+              >
+                <IconLogOut className="h-4 w-4" /> Checkout Scan
               </Button>
             </>
           )}
@@ -461,7 +486,17 @@ export default function Visitors() {
         )}
       </Modal>
 
-      <Modal open={scanOpen} onClose={() => setScanOpen(false)} title="Scan or verify visitor pass" size="sm">
+      <Modal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        title={scanIntent === "CHECK_OUT" ? "Checkout visitor" : "Scan or verify visitor pass"}
+        description={
+          scanIntent === "CHECK_OUT"
+            ? "Scan the visitor's pass to log their exit. Only checked-in visitors can be checked out here."
+            : "Scan the visitor's pass to grant gate entry."
+        }
+        size="sm"
+      >
         <div className="space-y-4">
           <div id="qr-reader-region" className="mx-auto w-full overflow-hidden rounded-lg bg-black/80" style={{ minHeight: cameraActive ? 220 : 0 }} />
           {!cameraActive ? (
