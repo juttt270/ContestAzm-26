@@ -1,6 +1,16 @@
+import dns from "node:dns";
 import mongoose from "mongoose";
 import { env } from "./env.js";
 import { logger } from "../utils/logger.js";
+
+// Fix Windows DNS SRV lookup issues (querySrv ECONNREFUSED) on local ISP/networks
+try {
+  dns.setDefaultResultOrder("ipv4first");
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch {
+  // Fallback if system environment overrides custom DNS servers
+}
+
 
 /** Connection options for production resiliency */
 const MONGO_OPTIONS = {

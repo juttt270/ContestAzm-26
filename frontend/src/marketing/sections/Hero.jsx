@@ -236,30 +236,26 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* CHECK FLAT DUES SEARCH INPUT CONTAINER (The User Requested Feature) */}
-          <div className="layer3-anim mt-6 sm:mt-8 w-full max-w-xl mx-auto z-30 px-2">
+          {/* CHECK FLAT DUES SEARCH INPUT CONTAINER */}
+          <div className="layer3-anim mt-5 sm:mt-8 w-full max-w-xl mx-auto z-30 px-2">
             <form
               onSubmit={handleCheckDues}
-              className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-full p-1.5 sm:p-2 flex items-center shadow-[0_10px_30px_rgba(0,0,0,0.6)] group hover:border-white/40 transition-all duration-300"
+              className="bg-black/70 backdrop-blur-2xl border border-white/20 rounded-2xl sm:rounded-full p-2 flex flex-col sm:flex-row items-stretch sm:items-center shadow-[0_10px_30px_rgba(0,0,0,0.6)] group hover:border-white/40 transition-all duration-300 gap-2 sm:gap-0"
             >
-              <div className="flex items-center gap-2 pl-3 sm:pl-4 text-white/50">
-                <Search className="w-4 h-4 text-emerald-400" />
-                <span className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-white/40 hidden xs:inline-block">
-                  Check Flat Dues:
-                </span>
+              <div className="flex items-center gap-2 pl-2 sm:pl-4 text-white/50 flex-1 min-w-0">
+                <Search className="w-4 h-4 text-emerald-400 shrink-0" />
+                <input
+                  type="text"
+                  value={flatNumber}
+                  onChange={(e) => setFlatNumber(e.target.value)}
+                  placeholder="Check Dues (e.g. B-402)"
+                  className="w-full bg-transparent text-white placeholder-white/40 text-xs sm:text-sm px-1 sm:px-2 focus:outline-none font-sans"
+                />
               </div>
-
-              <input
-                type="text"
-                value={flatNumber}
-                onChange={(e) => setFlatNumber(e.target.value)}
-                placeholder="Enter Flat No. (e.g. B-402)"
-                className="flex-1 bg-transparent text-white placeholder-white/40 text-xs sm:text-sm px-2 sm:px-3 focus:outline-none font-sans"
-              />
 
               <button
                 type="submit"
-                className="bg-white text-black px-4 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-semibold hover:bg-[#f4f4f4] transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md"
+                className="bg-white text-black px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold hover:bg-[#f4f4f4] transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-md w-full sm:w-auto"
               >
                 <span>{isSearching ? 'Checking...' : 'Check Balance'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />

@@ -13,16 +13,29 @@ import { errorHandler } from "./middlewares/error.middleware.js";
 const app = express();
 
 /* ---------------------------- Global middlewares --------------------------- */
-app.use(helmet());
-app.use(
-  cors({
-    origin:
-      env.NODE_ENV === "development"
-        ? /^http:\/\/localhost:\d+$/ // dev mein Vite kisi bhi free port par chal sakta hai
-        : env.CLIENT_URL,
-    credentials: true,
-  })
-);
+// Bulletproof CORS handling for preflight OPTIONS requests & all origins
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS"
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie"
+    );
+  }
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

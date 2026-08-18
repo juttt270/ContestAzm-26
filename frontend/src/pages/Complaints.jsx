@@ -13,7 +13,7 @@ import TextareaField from "@/components/ui/TextareaField";
 import ImageUpload from "@/components/ui/ImageUpload";
 import Loader from "@/components/ui/Loader";
 import { validateRequired } from "@/utils/validators";
-import { IconPlus, IconUserPlus, IconAlertCircle, IconClock } from "@/components/ui/icons";
+import { IconPlus, IconUserPlus, IconAlertCircle, IconClock, IconEye } from "@/components/ui/icons";
 
 const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Security", "Cleanliness", "Other"];
 const PRIORITIES = ["Low", "Medium", "High", "Emergency"];
@@ -35,6 +35,8 @@ export default function Complaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [detailTarget, setDetailTarget] = useState(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -216,22 +218,37 @@ export default function Complaints() {
     },
   ];
 
-  const rowActions =
-    role === "Admin"
-      ? (row) => [{ label: "Assign to staff", icon: IconUserPlus, onClick: () => openAssign(row) }]
-      : role === "Staff"
-        ? (row) => [
-            {
-              label: "Update status",
-              icon: IconAlertCircle,
-              onClick: () => {
-                setStatusTarget(row);
-                setStatusForm({ status: row.status, resolutionNotes: row.resolutionNotes || "" });
-                setStatusError("");
-              },
-            },
-          ]
-        : undefined;
+  const rowActions = (row) => {
+    const actions = [
+      {
+        label: "View details",
+        icon: IconEye,
+        onClick: () => setDetailTarget(row),
+      },
+    ];
+
+    if (role === "Admin") {
+      actions.push({
+        label: "Assign to staff",
+        icon: IconUserPlus,
+        onClick: () => openAssign(row),
+      });
+    }
+
+    if (role === "Staff" || role === "Admin") {
+      actions.push({
+        label: "Update status",
+        icon: IconAlertCircle,
+        onClick: () => {
+          setStatusTarget(row);
+          setStatusForm({ status: row.status, resolutionNotes: row.resolutionNotes || "" });
+          setStatusError("");
+        },
+      });
+    }
+
+    return actions;
+  };
 
   return (
     <div className="space-y-7">
@@ -404,7 +421,7 @@ export default function Complaints() {
         open={Boolean(statusTarget)}
         onClose={() => setStatusTarget(null)}
         title={statusTarget ? `Update ${statusTarget.ticketNumber}` : ""}
-        size="sm"
+        size="md"
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setStatusTarget(null)}>
@@ -416,6 +433,32 @@ export default function Complaints() {
           </>
         }
       >
+        {statusTarget && (
+          <div className="rounded-xl border border-line bg-surface-faint p-3.5 text-xs space-y-2 mb-4">
+            <div className="flex justify-between items-center font-medium border-b border-line pb-2">
+              <span className="text-ink font-semibold">{statusTarget.ticketNumber}: {statusTarget.title}</span>
+              <span className="text-ink-faint">Flat: <b>{flatLabel(statusTarget.flatId)}</b></span>
+            </div>
+            {statusTarget.residentId?.name && (
+              <p className="text-ink-faint">
+                Resident: <b className="text-ink">{statusTarget.residentId.name}</b> {statusTarget.residentId.phone && <a href={`tel:${statusTarget.residentId.phone}`} className="text-primary hover:underline ml-1">📞 {statusTarget.residentId.phone}</a>}
+              </p>
+            )}
+            <p className="text-ink leading-relaxed font-normal bg-surface p-2.5 rounded-lg border border-line">{statusTarget.description}</p>
+            {statusTarget.attachments && statusTarget.attachments.length > 0 && (
+              <div className="pt-1">
+                <p className="font-semibold text-ink-faint mb-1.5">Attached Photos ({statusTarget.attachments.length}):</p>
+                <div className="flex flex-wrap gap-2">
+                  {statusTarget.attachments.map((att, i) => (
+                    <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block group relative rounded overflow-hidden border border-line w-16 h-12">
+                      <img src={att.url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <form onSubmit={handleStatusUpdate} className="space-y-4">
           {statusError && (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
@@ -439,6 +482,142 @@ export default function Complaints() {
             placeholder="What was done to resolve this?"
           />
         </form>
+      </Modal>
+
+      {/* Full Detail Modal */}
+      <Modal
+        open={Boolean(detailTarget)}
+        onClose={() => setDetailTarget(null)}
+        title={detailTarget ? `${detailTarget.ticketNumber} — ${detailTarget.title}` : ""}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button variant="outline" size="sm" onClick={() => setDetailTarget(null)}>
+              Close
+            </Button>
+            <div className="flex items-center gap-2">
+              {role === "Admin" && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const t = detailTarget;
+                    setDetailTarget(null);
+                    openAssign(t);
+                  }}
+                >
+                  <IconUserPlus className="h-4 w-4" />
+                  Assign Staff
+                </Button>
+              )}
+              {(role === "Staff" || role === "Admin") && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const t = detailTarget;
+                    setDetailTarget(null);
+                    setStatusTarget(t);
+                    setStatusForm({ status: t.status, resolutionNotes: t.resolutionNotes || "" });
+                    setStatusError("");
+                  }}
+                >
+                  <IconAlertCircle className="h-4 w-4" />
+                  Update Status
+                </Button>
+              )}
+            </div>
+          </div>
+        }
+      >
+        {detailTarget && (
+          <div className="space-y-5 text-sm">
+            {/* Meta Tags */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
+              <Badge variant={PRIORITY_VARIANT[detailTarget.priority]}>{detailTarget.priority} Priority</Badge>
+              <StatusBadge status={detailTarget.status}>{STATUS_LABEL[detailTarget.status]}</StatusBadge>
+              <span className="text-xs text-ink-faint">Category: <b className="text-ink">{detailTarget.category}</b></span>
+              <span className="text-xs text-ink-faint ml-auto">Created: <b>{formatDate(detailTarget.createdAt)}</b></span>
+            </div>
+
+            {/* Resident & Location */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-line bg-surface-faint p-3.5">
+              <div>
+                <p className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">Resident Details</p>
+                <p className="font-semibold text-ink mt-1">{detailTarget.residentId?.name || "N/A"}</p>
+                {detailTarget.residentId?.phone && (
+                  <a href={`tel:${detailTarget.residentId.phone}`} className="text-xs text-primary hover:underline block mt-0.5 font-medium">
+                    📞 {detailTarget.residentId.phone}
+                  </a>
+                )}
+                {detailTarget.residentId?.email && (
+                  <p className="text-xs text-ink-faint mt-0.5">{detailTarget.residentId.email}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">Flat & Staff Routing</p>
+                <p className="font-semibold text-ink mt-1">Flat: {flatLabel(detailTarget.flatId)}</p>
+                <p className="text-xs text-ink-faint mt-1">
+                  Assigned Staff: <b className="text-ink">{detailTarget.assignedStaffId?.name || "Unassigned"}</b>
+                  {detailTarget.assignedStaffId?.phone && <span className="ml-1 text-primary">({detailTarget.assignedStaffId.phone})</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* Problem Description */}
+            <div className="space-y-1.5">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Complaint Description</h4>
+              <p className="text-ink whitespace-pre-wrap rounded-xl border border-line bg-surface p-3.5 leading-relaxed text-sm">
+                {detailTarget.description}
+              </p>
+            </div>
+
+            {/* Photo Attachments */}
+            <div className="space-y-2">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+                Attached Photos ({detailTarget.attachments?.length || 0})
+              </h4>
+              {detailTarget.attachments && detailTarget.attachments.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {detailTarget.attachments.map((att, idx) => (
+                    <a
+                      key={idx}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative aspect-video overflow-hidden rounded-xl border border-line bg-surface-faint transition hover:shadow-md"
+                    >
+                      <img
+                        src={att.url}
+                        alt={`Attachment ${idx + 1}`}
+                        className="h-full w-full object-cover transition group-hover:scale-105"
+                      />
+                      <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/75 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+                        View Photo 🔍
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-ink-faint italic bg-surface-faint p-3 rounded-xl border border-line">
+                  No photos were attached with this complaint ticket.
+                </p>
+              )}
+            </div>
+
+            {/* Resolution Notes */}
+            {detailTarget.resolutionNotes && (
+              <div className="space-y-1.5 border-t border-line pt-3.5">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-green-600 dark:text-green-400">
+                  Resolution Notes
+                </h4>
+                <p className="text-ink rounded-xl border border-green-500/20 bg-green-500/5 p-3.5 text-sm">
+                  {detailTarget.resolutionNotes}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

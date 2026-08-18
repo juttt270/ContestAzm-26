@@ -90,3 +90,26 @@ npm run dev             # http://localhost:5173
 | `VITE_APP_NAME` | app ka naam |
 
 > `.env` files git me ignore hain — sirf `.env.example` commit hoti hai.
+
+
+## 🍃 MongoDB Atlas Configuration & Credentials
+
+| Setting | Value / Details |
+| --- | --- |
+| **Cluster Host** | `furniturecluster.qtrgopo.mongodb.net` |
+| **Database Username** | `societyadmin` |
+| **Database Password** | `societyadmin` |
+| **Network Access / IP Whitelist** | `0.0.0.0/0` (Allow access from anywhere) |
+| **Connection String (MONGO_URI)** | `mongodb+srv://societyadmin:societyadmin@furniturecluster.qtrgopo.mongodb.net/?appName=FurnitureCluster` |
+
+
+## 🔑 Test Login Credentials (Demo Accounts)
+
+Testing ya review ke liye ye default accounts use kar sakte hain:
+
+| Role | Email | Password | Description |
+| --- | --- | --- | --- |
+| **Admin** | `admin@smartsociety.com` | `Admin@12345` | Society Manager / Admin access |
+| **Resident** | `resident2@smartsociety.com` | `Resident@123` | Flat Resident (Complaints, Passes, Bills) |
+| **Guard** | `guard2@smartsociety.com` | `Guard@123` | Gate Security (QR Code Scanning & Visitor Pass) |
+| **Staff** | `electrician2@smartsociety.com` | `Staff@123` | Maintenance Staff (Ticket details & Status updates) |
