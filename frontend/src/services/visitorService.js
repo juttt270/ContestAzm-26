@@ -35,3 +35,8 @@ export const checkoutVisitor = async (id) => {
   const res = await axiosClient.post(`/visitors/${id}/checkout`);
   return res.data;
 };
+
+export const cancelVisitorPass = async (id) => {
+  const res = await axiosClient.put(`/visitors/${id}/cancel`);
+  return res.data;
+};

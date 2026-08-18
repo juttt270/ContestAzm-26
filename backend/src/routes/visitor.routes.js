@@ -4,6 +4,7 @@ import {
   verifyQrCodePass,
   logWalkInVisitor,
   checkoutVisitor,
+  cancelVisitorPass,
   getOverstayAlerts,
   getVisitorLogs,
 } from "../controllers/visitor.controller.js";
@@ -16,6 +17,7 @@ router.use(protect);
 
 // Resident & Admin Pass Generation
 router.post("/generate-pass", authorizeRoles("Resident", "Admin"), generateVisitorPass);
+router.put("/:id/cancel", authorizeRoles("Resident", "Admin"), cancelVisitorPass);
 
 // Guard Terminal Verification & QR Scanning
 router.post("/verify-qr", authorizeRoles("Guard", "Admin"), verifyQrCodePass);

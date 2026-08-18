@@ -236,6 +236,30 @@ export const logWalkInVisitor = asyncHandler(async (req, res) => {
   return res.status(201).json(new ApiResponse(201, visitor, "Walk-in visitor logged and checked in successfully"));
 });
 
+// @desc    Cancel a pre-approved visitor pass before it's used at the gate
+// @route   PUT /api/v1/visitors/:id/cancel
+// @access  Private (Resident who issued it, or Admin)
+export const cancelVisitorPass = asyncHandler(async (req, res) => {
+  const visitor = await Visitor.findById(req.params.id);
+  if (!visitor) {
+    throw new ApiError(404, "Visitor pass not found.");
+  }
+
+  const isOwner = visitor.residentId.toString() === req.user._id.toString();
+  if (!isOwner && req.user.role !== "Admin") {
+    throw new ApiError(403, "You can only cancel a pass you issued yourself.");
+  }
+
+  if (visitor.status !== "APPROVED") {
+    throw new ApiError(400, `Cannot cancel a pass that is already ${visitor.status.replace(/_/g, " ").toLowerCase()}.`);
+  }
+
+  visitor.status = "CANCELLED";
+  await visitor.save();
+
+  return res.status(200).json(new ApiResponse(200, visitor, "Visitor pass cancelled successfully"));
+});
+
 // @desc    Record Visitor Exit / Checkout (Guard Terminal)
 // @route   POST /api/v1/visitors/:id/checkout
 // @access  Private (Guard, Admin)

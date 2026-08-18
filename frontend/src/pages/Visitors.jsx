@@ -7,6 +7,7 @@ import * as flatService from "@/services/flatService";
 import * as userService from "@/services/userService";
 import Table from "@/components/ui/Table";
 import Modal from "@/components/ui/Modal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Button from "@/components/ui/Button";
 import TextField from "@/components/ui/TextField";
 import SelectField from "@/components/ui/SelectField";
@@ -14,7 +15,9 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Loader from "@/components/ui/Loader";
 import ImageUpload from "@/components/ui/ImageUpload";
 import { formatDate } from "@/lib/date";
-import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield } from "@/components/ui/icons";
+import { playScanFeedback } from "@/lib/beep";
+import { downloadVisitorPassPdf } from "@/lib/generateVisitorPassPdf";
+import { IconPlus, IconQrCode, IconUsers, IconCheck, IconAlertCircle, IconCar, IconShield, IconDownload, IconX } from "@/components/ui/icons";
 
 const VISITOR_TYPES = ["Guest", "Delivery", "Cab", "Vendor", "Service"];
 const STATUS_LABEL = {
@@ -25,6 +28,7 @@ const STATUS_LABEL = {
   CANCELLED: "Cancelled",
 };
 const flatLabel = (flat) => (flat ? `${flat.blockName}-${flat.flatNumber}` : "—");
+const STATUS_TABS = ["All", "APPROVED", "CHECKED_IN", "COMPLETED", "EXPIRED", "CANCELLED"];
 
 const emptyPassForm = { visitorName: "", phone: "", vehicleNumber: "", purpose: "", visitorType: "Guest", validUntil: "" };
 const emptyWalkInForm = { visitorName: "", phone: "", vehicleNumber: "", purpose: "", visitorType: "Vendor", targetFlatId: "" };
@@ -64,6 +68,9 @@ export default function Visitors() {
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  const [statusTab, setStatusTab] = useState(role === "Guard" ? "CHECKED_IN" : "All");
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -115,9 +122,11 @@ export default function Visitors() {
       const payload = qrToken.startsWith("VQR-") ? { qrToken } : { passCode: qrToken };
       const result = await visitorService.verifyQrPass(payload);
       setScanResult({ ok: true, message: `Access granted: ${result.visitor.visitorName} → ${flatLabel(result.visitor.targetFlat)}` });
+      playScanFeedback(true);
       fetchAll();
     } catch (err) {
       setScanResult({ ok: false, message: err.message || "Verification failed" });
+      playScanFeedback(false);
     }
   };
 
@@ -125,18 +134,37 @@ export default function Visitors() {
     try {
       const scanner = new Html5Qrcode("qr-reader-region");
       scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 220 },
-        (decodedText) => {
-          runVerify(decodedText);
-          scanner
-            .stop()
-            .then(() => setCameraActive(false))
-            .catch(() => {});
-        },
-        () => {},
-      );
+
+      const onDecoded = (decodedText) => {
+        runVerify(decodedText);
+        scanner
+          .stop()
+          .then(() => setCameraActive(false))
+          .catch(() => {});
+      };
+      const config = { fps: 10, qrbox: 220 };
+
+      // Prefer a rear/back camera (phones, gate tablets); laptops only expose a
+      // front webcam, so forcing facingMode: "environment" finds no match there.
+      let cameraTarget = { facingMode: "environment" };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras?.length) {
+          const rear = cameras.find((c) => /back|rear|environment/i.test(c.label));
+          cameraTarget = { deviceId: { exact: (rear || cameras[0]).id } };
+        }
+      } catch {
+        // Camera enumeration needs permission first on some browsers — fall through
+        // to the facingMode constraint below and let getUserMedia prompt directly.
+      }
+
+      try {
+        await scanner.start(cameraTarget, config, onDecoded, () => {});
+      } catch {
+        // Laptop with only a front webcam, or the chosen device was rejected — retry front-facing.
+        await scanner.start({ facingMode: "user" }, config, onDecoded, () => {});
+      }
+
       setCameraActive(true);
     } catch {
       setScanResult({ ok: false, message: "Camera unavailable — use manual code entry below instead." });
@@ -183,6 +211,11 @@ export default function Visitors() {
     fetchAll();
   };
 
+  const handleCancelPass = async () => {
+    await visitorService.cancelVisitorPass(cancelTarget._id);
+    fetchAll();
+  };
+
   const handleVehicleLookup = async (e) => {
     e.preventDefault();
     if (!lookupQuery.trim()) return;
@@ -219,10 +252,17 @@ export default function Visitors() {
     { key: "createdAt", header: "Date", align: "right", render: (r) => formatDate(r.createdAt) },
   ];
 
-  const rowActions =
-    role === "Guard" || role === "Admin"
-      ? (row) => (row.status === "CHECKED_IN" ? [{ label: "Checkout", icon: IconCheck, onClick: () => handleCheckout(row) }] : [])
-      : undefined;
+  const rowActions = (row) => [
+    ...(row.qrCodeDataUrl ? [{ label: "Download pass", icon: IconDownload, onClick: () => downloadVisitorPassPdf(row) }] : []),
+    ...((role === "Guard" || role === "Admin") && row.status === "CHECKED_IN"
+      ? [{ label: "Checkout", icon: IconCheck, onClick: () => handleCheckout(row) }]
+      : []),
+    ...((role === "Resident" || role === "Admin") && row.status === "APPROVED"
+      ? [{ label: "Cancel pass", icon: IconX, danger: true, onClick: () => setCancelTarget(row) }]
+      : []),
+  ];
+
+  const visibleVisitors = statusTab === "All" ? visitors : visitors.filter((v) => v.status === statusTab);
 
   return (
     <div className="space-y-7">
@@ -295,6 +335,31 @@ export default function Visitors() {
         </div>
       )}
 
+      <div className="inline-flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
+        {STATUS_TABS.map((tab) => {
+          const count = tab === "All" ? visitors.length : visitors.filter((v) => v.status === tab).length;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setStatusTab(tab)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 ${
+                statusTab === tab ? "bg-ink text-canvas shadow-sm" : "text-ink-faint hover:text-ink"
+              }`}
+            >
+              {tab === "All" ? "All" : STATUS_LABEL[tab]}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                  statusTab === tab ? "bg-canvas/20 text-canvas" : "bg-surface-hover text-ink-dim"
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border border-line bg-surface py-20">
           <Loader label="Loading visitors..." />
@@ -303,9 +368,10 @@ export default function Visitors() {
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-600 dark:text-red-400">{error}</div>
       ) : (
         <Table
+          key={statusTab}
           title="Visitor Log"
           columns={columns}
-          data={visitors}
+          data={visibleVisitors}
           pageSize={10}
           searchPlaceholder="Search visitors..."
           exportFileName="visitors"
@@ -345,9 +411,14 @@ export default function Visitors() {
             <p className="mt-1 text-xs text-ink-ghost">
               Valid until {formatDate(generatedPass.validUntil, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
             </p>
-            <Button variant="primary" size="sm" className="mt-5 w-full" onClick={() => setPassOpen(false)}>
-              Done
-            </Button>
+            <div className="mt-5 flex w-full gap-2.5">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => downloadVisitorPassPdf(generatedPass)}>
+                <IconDownload className="h-4 w-4" /> Download PDF
+              </Button>
+              <Button variant="primary" size="sm" className="flex-1" onClick={() => setPassOpen(false)}>
+                Done
+              </Button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleGeneratePass} className="space-y-4">
@@ -549,6 +620,16 @@ export default function Visitors() {
           )}
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancelPass}
+        title="Cancel this visitor pass?"
+        description={cancelTarget ? `${cancelTarget.visitorName}'s pass will no longer work at the gate.` : ""}
+        confirmLabel="Cancel pass"
+        variant="danger"
+      />
     </div>
   );
 }
